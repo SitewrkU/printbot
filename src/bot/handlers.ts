@@ -459,6 +459,13 @@ export async function handleHelp(ctx: BotContext): Promise<void> {
   });
 }
 
+/** Допомагає дізнатися ID групового чату для STAFF_CHAT_ID. */
+export async function handleChatId(ctx: BotContext): Promise<void> {
+  await ctx.reply(`ID цього чату: <code>${ctx.chat.id}</code>`, {
+    parse_mode: "HTML",
+  });
+}
+
 /** Скріншот квитанції: пересилаємо працівникам, щоб вони підтвердили оплату. */
 export async function handleReceipt(ctx: BotContext): Promise<void> {
   const message = ctx.message;

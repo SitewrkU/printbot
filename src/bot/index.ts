@@ -6,6 +6,7 @@ import type { BotContext } from "./context.js";
 import {
   handleAdminCommand,
   handleCallback,
+  handleChatId,
   handleCancel,
   handleContact,
   handleHelp,
@@ -31,6 +32,7 @@ export function createBot(): Bot<BotContext> {
   bot.command("help", handleHelp);
   bot.command("cancel", handleCancel);
   bot.command("admin", handleAdminCommand);
+  bot.command("chatid", handleChatId);
 
   bot.on("message:contact", handleContact);
   bot.on("message:photo", handleReceipt);
