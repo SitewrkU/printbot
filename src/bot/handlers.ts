@@ -3,7 +3,13 @@ import { prisma } from "../infra/db.js";
 import { logger } from "../infra/logger.js";
 import { normalizePhone } from "../domain/phone.js";
 import { canManageWorkers, isRole, type Role } from "../domain/roles.js";
+import { isValidRoom, normalizeRoom } from "../domain/rooms.js";
+import { getAnnouncement, isOrderingEnabled } from "../domain/settings.js";
 import { addWorker, displayName, listWorkers, removeWorker, saveProfile } from "../domain/users.js";
+import {
+  handleAnnouncementText,
+  handleStaffCallback,
+} from "./announce-flow.js";
 import { currentUser, type BotContext } from "./context.js";
 import {
   adminKeyboard,
@@ -20,6 +26,7 @@ import { handleOrderCallback, handleOrderText, startNewOrder } from "./order-flo
 import {
   handleClientOrderCallback,
   handleQueueCallback,
+  handleStaffPriceText,
   showClientOrders,
   showQueue,
 } from "./queue-flow.js";
@@ -31,7 +38,7 @@ import {
   type Draft,
   type Step,
 } from "./state.js";
-import { texts } from "./texts.js";
+import { escapeHtml, texts } from "./texts.js";
 import { editOrReply, replyHtml } from "./utils.js";
 
 function stateKey(ctx: BotContext): string {
@@ -47,14 +54,20 @@ function profileComplete(user: {
   phone: string | null;
   location: string | null;
 }): boolean {
-  return Boolean(user.fullName && user.phone && user.location);
+  return Boolean(user.fullName && user.phone && isValidRoom(user.location));
 }
 
 async function showMainMenu(ctx: BotContext): Promise<void> {
   const user = currentUser(ctx);
+  const enabled = await isOrderingEnabled();
+  const announcement = enabled ? null : await getAnnouncement();
+  const suffix = enabled
+    ? ""
+    : `\n\n${texts.orderingDisabledShort}${announcement ? `\n${escapeHtml(announcement)}` : ""}`;
+
   await editOrReply(
     ctx,
-    texts.mainMenu(user.fullName ?? undefined),
+    `${texts.mainMenu(user.fullName ?? undefined)}${suffix}`,
     mainMenuKeyboard(roleOf(user)),
   );
 }
@@ -105,7 +118,7 @@ async function startOnboarding(ctx: BotContext): Promise<void> {
     ? "reg_name"
     : !draft.phone
       ? "reg_phone"
-      : !draft.location
+      : !isValidRoom(draft.location)
         ? "reg_location"
         : "reg_confirm";
 
@@ -126,10 +139,7 @@ export async function handleStart(ctx: BotContext): Promise<void> {
     return;
   }
 
-  await ctx.reply(texts.mainMenu(user.fullName ?? undefined), {
-    parse_mode: "HTML",
-    reply_markup: mainMenuKeyboard(roleOf(user)),
-  });
+  await showMainMenu(ctx);
 }
 
 // ------------------------------------------------------------------ профіль
@@ -182,8 +192,8 @@ async function savePhone(ctx: BotContext, value: string): Promise<void> {
 }
 
 async function saveLocation(ctx: BotContext, value: string): Promise<void> {
-  const location = value.trim();
-  if (location.length < 1 || location.length > 32) {
+  const location = normalizeRoom(value);
+  if (!location) {
     await ctx.reply(texts.invalidLocation, { parse_mode: "HTML" });
     return;
   }
@@ -336,8 +346,8 @@ export async function handleText(ctx: BotContext): Promise<void> {
     }
 
     case "reg_location": {
-      const location = text.trim();
-      if (location.length < 1 || location.length > 32) {
+      const location = normalizeRoom(text);
+      if (!location) {
         await ctx.reply(texts.invalidLocation, { parse_mode: "HTML" });
         return;
       }
@@ -369,6 +379,14 @@ export async function handleText(ctx: BotContext): Promise<void> {
 
     case "admin_add_worker":
       await addWorkerFromText(ctx, text);
+      return;
+
+    case "staff_price":
+      await handleStaffPriceText(ctx, state);
+      return;
+
+    case "staff_announce":
+      await handleAnnouncementText(ctx, text);
       return;
 
     default:
@@ -493,6 +511,10 @@ export async function handleCallback(ctx: BotContext): Promise<void> {
       await handleClientOrderCallback(ctx, data);
       return;
     }
+    if (data.startsWith("staff:")) {
+      await handleStaffCallback(ctx, data);
+      return;
+    }
 
     if (data === "menu:main") {
       clearState(stateKey(ctx));
@@ -592,14 +614,15 @@ async function confirmProfile(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const { fullName, phone, location } = state.draft;
-  if (!fullName || !phone || !location) {
+  const { fullName, phone } = state.draft;
+  const room = normalizeRoom(state.draft.location ?? "");
+  if (!fullName || !phone || !room) {
     await replyHtml(ctx, `Дані неповні. Натисніть /start, щоб почати заново.`);
     return;
   }
 
   const user = currentUser(ctx);
-  const updated = await saveProfile(user.id, { fullName, phone, location });
+  const updated = await saveProfile(user.id, { fullName, phone, location: room });
   ctx.user = updated;
   clearState(key);
 

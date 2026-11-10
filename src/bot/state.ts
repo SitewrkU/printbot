@@ -33,12 +33,19 @@ export type Step =
   | "order_copies"
   | "order_copies_custom"
   | "order_confirm"
-  | "order_comment";
+  | "order_comment"
+  | "staff_price"
+  | "staff_announce";
+
+export type StaffAction = {
+  orderId: string;
+};
 
 export type ConversationState = {
   step: Step;
   draft: Draft;
   order?: OrderDraft;
+  staffAction?: StaffAction;
 };
 
 const TTL_MS = 30 * 60 * 1000;

@@ -40,6 +40,7 @@ model Order {
   pagesExact      Boolean   @default(true)
   copies          Int
   amountKop       Int
+  priceConfirmed  Boolean   @default(true)
   comment         String?
   locationSnapshot String
   phoneSnapshot   String?
@@ -115,4 +116,22 @@ model Payment {
 
   @@index([orderId])
   @@map("payments")
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+model DailyStat {
+  day        DateTime @id @db.Date
+  orders     Int      @default(0)
+  pages      Int      @default(0)
+  revenueKop Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@map("daily_stats")
 }

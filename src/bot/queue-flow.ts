@@ -1,13 +1,15 @@
 import { InlineKeyboard } from "grammy";
 import { logger } from "../infra/logger.js";
-import { formatUah } from "../domain/pricing.js";
+import { formatUah, parsePriceInput } from "../domain/pricing.js";
 import {
   OrderActionError,
+  changeOrderPrice,
+  confirmOrderPrice,
   getOrderView,
   listClientOrders,
   listFreeQueue,
   listWorkerActive,
-  markCashPaid,
+  markPaymentPaid,
   transitionOrder,
 } from "../domain/queue.js";
 import { isRole, isStaff, type Role } from "../domain/roles.js";
@@ -22,9 +24,13 @@ import {
   backToMenuKeyboard,
   cashConfirmKeyboard,
   clientOrdersKeyboard,
+  clientPriceKeyboard,
   holdReasonsKeyboard,
   orderDetailKeyboard,
+  rejectReasonsKeyboard,
 } from "./keyboards.js";
+import { notifyStaff } from "./notify.js";
+import { clearState, setState, type ConversationState } from "./state.js";
 import { texts } from "./texts.js";
 import { editOrReply, replyHtml } from "./utils.js";
 
@@ -84,7 +90,7 @@ export async function showQueue(ctx: BotContext): Promise<void> {
               pages: order.pagesTotal,
               copies: order.copies,
               amount: formatUah(order.amountKop),
-              location: order.locationSnapshot,
+              room: order.locationSnapshot,
               payment: paymentLine(order),
               waiting: formatWaiting(order.createdAt),
             }),
@@ -104,7 +110,7 @@ export async function showQueue(ctx: BotContext): Promise<void> {
                 pages: order.pagesTotal,
                 copies: order.copies,
                 amount: formatUah(order.amountKop),
-                location: order.locationSnapshot,
+                room: order.locationSnapshot,
                 payment: paymentLine(order),
                 waiting: formatWaiting(order.createdAt),
               }),
@@ -205,6 +211,13 @@ export async function handleQueueCallback(
     }
 
     if (action === "ready") {
+      if (!view.priceConfirmed) {
+        await replyHtml(
+          ctx,
+          `Клієнт ще не підтвердив нову ціну. Дочекайтеся підтвердження.`,
+        );
+        return;
+      }
       await transitionOrder({
         orderId,
         to: "READY",
@@ -214,11 +227,15 @@ export async function handleQueueCallback(
       await notifyClient(
         ctx,
         view.client.telegramId,
-        texts.orderReadyClient({ code: view.code, location: view.locationSnapshot }),
+        texts.orderReadyClient(view.code),
       );
 
       const updated = await getOrderView(orderId);
-      if (updated && updated.paymentStatus !== "paid") {
+      if (
+        updated &&
+        updated.paymentMethod === "cash" &&
+        updated.paymentStatus !== "paid"
+      ) {
         await ctx.reply(texts.cashQuestion(formatUah(updated.amountKop)), {
           parse_mode: "HTML",
           reply_markup: cashConfirmKeyboard(orderId.toString()),
@@ -229,9 +246,58 @@ export async function handleQueueCallback(
       return;
     }
 
-    if (action === "cash") {
-      await markCashPaid(orderId, user.id);
+    if (action === "cash" || action === "paid") {
+      await markPaymentPaid(orderId, user.id);
       await ctx.reply(texts.cashConfirmed, { parse_mode: "HTML" });
+      await notifyClient(
+        ctx,
+        view.client.telegramId,
+        texts.paymentConfirmedClient(view.code),
+      );
+      await renderOrder(ctx, orderId);
+      return;
+    }
+
+    if (action === "price") {
+      setPriceState(ctx, orderId);
+      await editOrReply(
+        ctx,
+        texts.pricePrompt(formatUah(view.amountKop)),
+        backToMenuKeyboard(),
+      );
+      return;
+    }
+
+    if (action === "reject") {
+      await editOrReply(
+        ctx,
+        texts.rejectReasons,
+        rejectReasonsKeyboard(orderId.toString()),
+      );
+      return;
+    }
+
+    if (action === "rejectr" && extra) {
+      const reason =
+        extra === "color"
+          ? texts.rejectReasonButton.color
+          : texts.rejectReasonButton.file;
+      await transitionOrder({
+        orderId,
+        to: "CANCELLED",
+        actorId: user.id,
+        reason: `відхилено працівником: ${reason}`,
+        requireAcceptedBy:
+          roleOf(user) === "admin" || view.acceptedById === null
+            ? undefined
+            : user.id,
+      });
+      await notifyClient(
+        ctx,
+        view.client.telegramId,
+        texts.rejectedClient({ code: view.code, reason }),
+      );
+      await ctx.reply(texts.rejectedStaff(view.code), { parse_mode: "HTML" });
       await renderOrder(ctx, orderId);
       return;
     }
@@ -317,6 +383,58 @@ export async function handleClientOrderCallback(
   }
 
   try {
+    if (action === "agree") {
+      if (view.priceConfirmed) {
+        await renderOrder(ctx, orderId);
+        return;
+      }
+      await confirmOrderPrice(orderId, user.id);
+      await ctx.reply(texts.priceAgreedClient(view.code), { parse_mode: "HTML" });
+      await notifyStaff(
+        ctx,
+        texts.priceAgreedStaff({
+          code: view.code,
+          amount: formatUah(view.amountKop),
+        }),
+      );
+      await renderOrder(ctx, orderId);
+      return;
+    }
+
+    if (action === "decline") {
+      if (view.priceConfirmed) {
+        await renderOrder(ctx, orderId);
+        return;
+      }
+      await transitionOrder({
+        orderId,
+        to: "CANCELLED",
+        actorId: user.id,
+        reason: "клієнт не погодився з ціною",
+      });
+      await ctx.reply(texts.priceDeclinedClient(view.code), { parse_mode: "HTML" });
+      await notifyStaff(ctx, texts.priceDeclinedStaff(view.code));
+      await renderOrder(ctx, orderId);
+      return;
+    }
+
+    if (action === "paid") {
+      if (view.paymentMethod !== "card_transfer" || view.paymentStatus === "paid") {
+        await replyHtml(ctx, texts.orderActionNotAllowed);
+        return;
+      }
+      await ctx.reply(texts.paymentRequestedClient, { parse_mode: "HTML" });
+      await notifyStaff(
+        ctx,
+        texts.paymentRequestedStaff({
+          code: view.code,
+          amount: formatUah(view.amountKop),
+        }),
+      );
+      await renderOrder(ctx, orderId);
+      return;
+    }
+
     if (action === "cancel") {
       if (view.status !== "QUEUED") {
         await replyHtml(ctx, texts.orderActionNotAllowed);
@@ -358,6 +476,84 @@ export async function handleClientOrderCallback(
   }
 }
 
+export async function handleStaffPriceText(
+  ctx: BotContext,
+  state: ConversationState,
+): Promise<void> {
+  const user = currentUser(ctx);
+  const key = stateKey(ctx);
+
+  if (!isStaff(roleOf(user))) {
+    clearState(key);
+    await replyHtml(ctx, texts.adminOnly, backToMenuKeyboard());
+    return;
+  }
+
+  const orderId = parseOrderId(state.staffAction?.orderId);
+  if (!orderId) {
+    clearState(key);
+    await editOrReply(ctx, texts.orderNotFound, backToMenuKeyboard());
+    return;
+  }
+
+  const parsed = parsePriceInput(ctx.message?.text ?? "");
+  if (!parsed) {
+    await ctx.reply(texts.priceInvalid, { parse_mode: "HTML" });
+    return;
+  }
+
+  const view = await getOrderView(orderId);
+  if (!view) {
+    clearState(key);
+    await editOrReply(ctx, texts.orderNotFound, backToMenuKeyboard());
+    return;
+  }
+
+  try {
+    await changeOrderPrice({
+      orderId,
+      amountKop: parsed.amountKop,
+      reason: parsed.reason,
+      actorId: user.id,
+    });
+    clearState(key);
+
+    const amount = formatUah(parsed.amountKop);
+    await ctx.reply(
+      texts.priceChangedStaff({ code: view.code, amount, reason: parsed.reason }),
+      { parse_mode: "HTML" },
+    );
+    await notifyClient(
+      ctx,
+      view.client.telegramId,
+      texts.priceChangedClient({ code: view.code, amount, reason: parsed.reason }),
+      clientPriceKeyboard(orderId.toString()),
+    );
+    await renderOrder(ctx, orderId);
+  } catch (error) {
+    if (error instanceof OrderActionError) {
+      clearState(key);
+      await replyHtml(ctx, texts.orderActionNotAllowed);
+      return;
+    }
+    logger.error({ err: error }, "price change failed");
+    clearState(key);
+    await replyHtml(ctx, texts.orderActionNotAllowed);
+  }
+}
+
+function stateKey(ctx: BotContext): string {
+  return String(ctx.from?.id ?? "unknown");
+}
+
+function setPriceState(ctx: BotContext, orderId: bigint): void {
+  setState(stateKey(ctx), {
+    step: "staff_price",
+    draft: {},
+    staffAction: { orderId: orderId.toString() },
+  });
+}
+
 async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
   const user = currentUser(ctx);
   const staff = isStaff(roleOf(user));
@@ -376,6 +572,8 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
     isMine,
     status: order.status,
     paymentStatus: order.paymentStatus,
+    paymentMethod: order.paymentMethod,
+    priceConfirmed: order.priceConfirmed,
   });
 
   await editOrReply(
@@ -388,7 +586,8 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
       pagesExact: order.pagesExact,
       copies: order.copies,
       amount: formatUah(order.amountKop),
-      location: order.locationSnapshot,
+      priceConfirmed: order.priceConfirmed,
+      room: order.locationSnapshot,
       phone: staff ? order.phoneSnapshot : null,
       comment: order.comment ?? undefined,
       clientName: staff ? displayName(order.client) : undefined,
@@ -427,9 +626,13 @@ async function notifyClient(
   ctx: BotContext,
   telegramId: bigint,
   text: string,
+  keyboard?: InlineKeyboard,
 ): Promise<void> {
   try {
-    await ctx.api.sendMessage(telegramId.toString(), text, { parse_mode: "HTML" });
+    await ctx.api.sendMessage(telegramId.toString(), text, {
+      parse_mode: "HTML",
+      ...(keyboard ? { reply_markup: keyboard } : {}),
+    });
   } catch (error) {
     logger.warn(
       { err: error, telegramId: telegramId.toString() },

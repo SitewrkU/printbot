@@ -19,19 +19,21 @@ const envSchema = z.object({
     .default("info"),
 
   PRINT_NAME: z.string().min(1).default("Друкарська, 48б"),
+  PICKUP_POINT: z.string().min(1).default("Друкарська, 48-бічна"),
   WORK_HOURS: z.string().min(1).default("щодня 18:00–22:00"),
   SUPPORT_CONTACT: z.string().default(""),
 
   PRICE_PER_PAGE_KOP: z.coerce.number().int().positive().default(300),
-  MAX_FILES_PER_ORDER: z.coerce.number().int().positive().default(10),
-  MAX_PAGES_PER_ORDER: z.coerce.number().int().positive().default(300),
-  MAX_COPIES: z.coerce.number().int().positive().default(50),
+  MAX_FILES_PER_ORDER: z.coerce.number().int().positive().default(15),
+  MAX_PAGES_PER_ORDER: z.coerce.number().int().positive().default(100),
+  MAX_COPIES: z.coerce.number().int().positive().default(20),
   MAX_FILE_SIZE_BYTES: z.coerce
     .number()
     .int()
     .positive()
     .default(20 * 1024 * 1024),
   ORDER_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(5),
+  ORDER_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
 
   CARD_TRANSFER_ENABLED: booleanString.default("true"),
   CARD_NUMBER: z.string().default(""),

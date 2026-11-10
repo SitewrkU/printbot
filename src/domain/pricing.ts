@@ -29,3 +29,28 @@ export function formatUah(amountKop: number): string {
   const kopiykas = String(amountKop % 100).padStart(2, "0");
   return `${hryvnia},${kopiykas} грн`;
 }
+
+export type PriceInput = {
+  amountKop: number;
+  reason: string;
+};
+
+const PRICE_REASON_DEFAULT = "багато кольору / заливки";
+export const MAX_MANUAL_PRICE_KOP = 100_000; // 1000 грн на одне замовлення
+
+/** "45 | багато чорного" -> { amountKop: 4500, reason: "багато чорного" } */
+export function parsePriceInput(raw: string): PriceInput | null {
+  const [amountPart, ...reasonParts] = raw.split("|");
+  const amountText = (amountPart ?? "").trim().replace(/\s|грн/gi, "").replace(",", ".");
+  if (!/^\d{1,4}(\.\d{1,2})?$/.test(amountText)) {
+    return null;
+  }
+
+  const amountKop = Math.round(Number(amountText) * 100);
+  if (amountKop <= 0 || amountKop > MAX_MANUAL_PRICE_KOP) {
+    return null;
+  }
+
+  const reason = reasonParts.join("|").trim().slice(0, 200);
+  return { amountKop, reason: reason.length > 0 ? reason : PRICE_REASON_DEFAULT };
+}

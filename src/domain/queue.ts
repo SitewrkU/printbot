@@ -136,7 +136,7 @@ export async function transitionOrder(input: TransitionInput): Promise<Order> {
   });
 }
 
-export async function markCashPaid(
+export async function markPaymentPaid(
   orderId: bigint,
   actorId: bigint,
 ): Promise<Order> {
@@ -144,6 +144,13 @@ export async function markCashPaid(
     const order = await tx.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new OrderActionError("not_found", "Замовлення не знайдено");
+    }
+    if (
+      order.status === "CLOSED" ||
+      order.status === "CANCELLED" ||
+      order.status === "EXPIRED"
+    ) {
+      throw new OrderActionError("bad_status", "Замовлення вже завершене");
     }
     if (order.paymentStatus === "paid") {
       return order;
@@ -154,15 +161,30 @@ export async function markCashPaid(
       data: { paymentStatus: "paid" },
     });
 
-    await tx.payment.create({
-      data: {
-        orderId,
-        provider: "manual",
-        status: "paid",
-        amountKop: order.amountKop,
-        confirmedById: actorId,
-      },
+    const pending = await tx.payment.findFirst({
+      where: { orderId, status: "pending_review" },
     });
+
+    if (pending) {
+      await tx.payment.update({
+        where: { id: pending.id },
+        data: {
+          status: "paid",
+          amountKop: order.amountKop,
+          confirmedById: actorId,
+        },
+      });
+    } else {
+      await tx.payment.create({
+        data: {
+          orderId,
+          provider: "manual",
+          status: "paid",
+          amountKop: order.amountKop,
+          confirmedById: actorId,
+        },
+      });
+    }
 
     await tx.orderEvent.create({
       data: {
@@ -171,6 +193,88 @@ export async function markCashPaid(
         type: "payment_confirmed",
         fromValue: order.paymentStatus,
         toValue: "paid",
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function changeOrderPrice(input: {
+  orderId: bigint;
+  amountKop: number;
+  reason: string;
+  actorId: bigint;
+}): Promise<Order> {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({ where: { id: input.orderId } });
+    if (!order) {
+      throw new OrderActionError("not_found", "Замовлення не знайдено");
+    }
+    if (
+      order.status === "READY" ||
+      order.status === "CLOSED" ||
+      order.status === "CANCELLED" ||
+      order.status === "EXPIRED"
+    ) {
+      throw new OrderActionError("bad_status", "Замовлення вже завершене");
+    }
+    if (!Number.isInteger(input.amountKop) || input.amountKop <= 0) {
+      throw new OrderActionError("bad_status", "Некоректна сума");
+    }
+    if (input.amountKop === order.amountKop) {
+      throw new OrderActionError("bad_status", "Сума не змінилася");
+    }
+
+    const updated = await tx.order.update({
+      where: { id: input.orderId },
+      data: { amountKop: input.amountKop, priceConfirmed: false },
+    });
+
+    await tx.payment.updateMany({
+      where: { orderId: input.orderId, status: "pending_review" },
+      data: { amountKop: input.amountKop },
+    });
+
+    await tx.orderEvent.create({
+      data: {
+        orderId: input.orderId,
+        actorId: input.actorId,
+        type: "price_change",
+        fromValue: String(order.amountKop),
+        toValue: String(input.amountKop),
+        reason: input.reason,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function confirmOrderPrice(
+  orderId: bigint,
+  actorId: bigint,
+): Promise<Order> {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      throw new OrderActionError("not_found", "Замовлення не знайдено");
+    }
+    if (order.priceConfirmed) {
+      return order;
+    }
+
+    const updated = await tx.order.update({
+      where: { id: orderId },
+      data: { priceConfirmed: true },
+    });
+
+    await tx.orderEvent.create({
+      data: {
+        orderId,
+        actorId,
+        type: "price_confirmed",
+        toValue: String(order.amountKop),
       },
     });
 
@@ -206,4 +310,78 @@ export async function autoCloseReadyOrders(
   }
 
   return closed;
+}
+
+export type CleanupResult = {
+  deleted: number;
+  days: number;
+};
+
+/**
+ * Видаляє старі завершені замовлення, зберігаючи добові агрегати.
+ * Прибирає лише метадані — самі файли зберігаються в Telegram.
+ */
+export async function cleanupOldOrders(
+  now: Date = new Date(),
+  retentionDays = 90,
+): Promise<CleanupResult> {
+  const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+
+  const orders = await prisma.order.findMany({
+    where: {
+      status: { in: ["CLOSED", "CANCELLED", "EXPIRED"] },
+      createdAt: { lt: cutoff },
+    },
+    select: {
+      id: true,
+      status: true,
+      createdAt: true,
+      pagesTotal: true,
+      amountKop: true,
+    },
+  });
+
+  if (orders.length === 0) {
+    return { deleted: 0, days: retentionDays };
+  }
+
+  const byDay = new Map<
+    string,
+    { orders: number; pages: number; revenueKop: number }
+  >();
+
+  for (const order of orders) {
+    const day = order.createdAt.toISOString().slice(0, 10);
+    const bucket = byDay.get(day) ?? { orders: 0, pages: 0, revenueKop: 0 };
+    bucket.orders += 1;
+    bucket.pages += order.pagesTotal;
+    if (order.status === "CLOSED") {
+      bucket.revenueKop += order.amountKop;
+    }
+    byDay.set(day, bucket);
+  }
+
+  for (const [day, bucket] of byDay) {
+    const date = new Date(`${day}T00:00:00.000Z`);
+    await prisma.dailyStat.upsert({
+      where: { day: date },
+      create: {
+        day: date,
+        orders: bucket.orders,
+        pages: bucket.pages,
+        revenueKop: bucket.revenueKop,
+      },
+      update: {
+        orders: { increment: bucket.orders },
+        pages: { increment: bucket.pages },
+        revenueKop: { increment: bucket.revenueKop },
+      },
+    });
+  }
+
+  const result = await prisma.order.deleteMany({
+    where: { id: { in: orders.map((order) => order.id) } },
+  });
+
+  return { deleted: result.count, days: retentionDays };
 }

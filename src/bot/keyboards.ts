@@ -16,6 +16,7 @@ export function mainMenuKeyboard(role: Role): InlineKeyboard {
 
   if (isStaff(role)) {
     keyboard.text("📋 Черга", "menu:queue").row();
+    keyboard.text("📢 Оголошення", "staff:home").row();
   }
 
   keyboard
@@ -44,7 +45,7 @@ export function profileKeyboard(): InlineKeyboard {
     .text("✏️ Ім'я", "profile:name")
     .text("📱 Телефон", "profile:phone")
     .row()
-    .text("🚪 Куди нести", "profile:location")
+    .text("🚪 Кімната", "profile:location")
     .row()
     .text("◀️ Назад", "menu:main");
 }
@@ -84,6 +85,13 @@ export function confirmRemoveWorkerKeyboard(telegramId: string): InlineKeyboard 
 
 export function backToMenuKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("◀️ У меню", "menu:main");
+}
+
+export function roomRequiredKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🚪 Вказати кімнату", "profile:location")
+    .row()
+    .text("◀️ У меню", "menu:main");
 }
 
 export function editProfileKeyboard(): InlineKeyboard {
@@ -147,16 +155,21 @@ export function orderDetailKeyboard(params: {
   isMine: boolean;
   status: string;
   paymentStatus: string;
+  paymentMethod: string;
+  priceConfirmed: boolean;
 }): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const id = params.orderId;
+  const canReview = ["QUEUED", "IN_PROGRESS", "ON_HOLD"].includes(params.status);
 
   if (params.isStaff && params.status === "QUEUED") {
     keyboard.text("✅ Взяти в роботу", `q:take:${id}`).row();
   }
 
   if (params.isStaff && params.status === "IN_PROGRESS" && params.isMine) {
-    keyboard.text("✅ Готово", `q:ready:${id}`).row();
+    if (params.priceConfirmed) {
+      keyboard.text("✅ Готово", `q:ready:${id}`).row();
+    }
     keyboard.text("⚠️ Проблема", `q:hold:${id}`).row();
   }
 
@@ -164,16 +177,44 @@ export function orderDetailKeyboard(params: {
     keyboard.text("▶️ Продовжити", `q:resume:${id}`).row();
   }
 
+  if (params.isStaff && canReview) {
+    keyboard.text("💰 Змінити ціну", `q:price:${id}`).row();
+    keyboard.text("❌ Відхилити", `q:reject:${id}`).row();
+  }
+
   if (
     params.isStaff &&
     params.status === "READY" &&
+    params.paymentMethod === "cash" &&
     params.paymentStatus !== "paid"
   ) {
     keyboard.text("💵 Гроші отримано", `q:cash:${id}`).row();
   }
 
-  if (!params.isStaff && params.status === "QUEUED") {
+  if (
+    params.isStaff &&
+    params.paymentStatus === "pending_review" &&
+    (canReview || params.status === "READY")
+  ) {
+    keyboard.text("💰 Оплату підтверджено", `q:paid:${id}`).row();
+  }
+
+  if (!params.isStaff && !params.priceConfirmed && canReview) {
+    keyboard.text("✅ Погоджуюсь із ціною", `o:agree:${id}`).row();
+    keyboard.text("❌ Відмовитись", `o:decline:${id}`).row();
+  }
+
+  if (!params.isStaff && params.status === "QUEUED" && params.priceConfirmed) {
     keyboard.text("❌ Скасувати замовлення", `o:cancel:${id}`).row();
+  }
+
+  if (
+    !params.isStaff &&
+    params.paymentMethod === "card_transfer" &&
+    params.paymentStatus !== "paid" &&
+    canReview
+  ) {
+    keyboard.text("✅ Я оплатив", `o:paid:${id}`).row();
   }
 
   if (!params.isStaff && params.status === "READY") {
@@ -186,6 +227,33 @@ export function orderDetailKeyboard(params: {
 
   keyboard.text("◀️ Назад", params.isStaff ? "menu:queue" : "menu:orders");
   return keyboard;
+}
+
+export function rejectReasonsKeyboard(orderId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🎨 Багато кольору", `q:rejectr:${orderId}:color`)
+    .row()
+    .text("📄 Файл нечитабельний", `q:rejectr:${orderId}:file`)
+    .row()
+    .text("◀️ Назад", `q:view:${orderId}`);
+}
+
+export function clientPriceKeyboard(orderId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("✅ Погоджуюсь", `o:agree:${orderId}`)
+    .text("❌ Відмовитись", `o:decline:${orderId}`);
+}
+
+export function staffMenuKeyboard(orderingEnabled: boolean): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("📢 Надіслати оголошення", "staff:announce")
+    .row()
+    .text(
+      orderingEnabled ? "⏸ Вимкнути замовлення" : "▶️ Увімкнути замовлення",
+      "staff:toggle",
+    )
+    .row()
+    .text("◀️ Меню", "menu:main");
 }
 
 export function holdReasonsKeyboard(orderId: string): InlineKeyboard {

@@ -28,10 +28,13 @@ export const texts = {
     `👋 <b>Вітаємо${name ? `, ${escapeHtml(name)}` : ""}!</b>\n\n` +
     `Це бот друкарні «${escapeHtml(config.PRINT_NAME)}».\n` +
     `Надсилаєте файл → бачите ціну → забираєте роздруківку.\n\n` +
-    `<b>${price()}</b>, чорно-білий друк.\n` +
+    `<b>${price()}</b>, кольоровий друк.\n` +
+    `Видача: <b>${escapeHtml(config.PICKUP_POINT)}</b>.\n` +
     `Графік: ${escapeHtml(config.WORK_HOURS)}`,
 
-  askName: `Як вас звати? Напишіть ім'я та прізвище одним повідомленням.`,
+  askName:
+    `Як вас звати? Напишіть <b>справжнє ім'я та прізвище</b> одним повідомленням — ` +
+    `за ним вас шукатимуть, якщо замовлення затримається.`,
   invalidName: `Ім'я має містити від 2 до 60 символів. Спробуйте ще раз.`,
 
   askPhone:
@@ -40,14 +43,19 @@ export const texts = {
     `• вручну у форматі <code>+380501234567</code>`,
   invalidPhone: `Не вдалося розпізнати номер. Формат: <code>+380501234567</code>.`,
 
-  askLocation: `Вкажіть, куди принести роздруківку: корпус і кімната (наприклад, <code>4 корпус, 415</code>).`,
-  invalidLocation: `Локація має містити від 1 до 32 символів.`,
+  askLocation:
+    `Вкажіть вашу кімнату у гуртожитку: <b>номер + б/п</b> (бічна/пряма).\n` +
+    `Наприклад: <code>25б</code> або <code>33п</code>.`,
+  invalidLocation:
+    `Некоректна кімната. Потрібно: 1–2 цифри та літера <code>б</code> або <code>п</code>.\n` +
+    `Наприклад: <code>25б</code>, <code>33п</code>.`,
 
   confirmProfile: (data: { fullName?: string; phone?: string; location?: string }) =>
     `<b>Перевірте дані</b>\n\n` +
     `Ім'я: ${escapeHtml(data.fullName ?? "—")}\n` +
     `Телефон: ${data.phone ? formatPhone(data.phone) : "—"}\n` +
-    `Куди нести: ${escapeHtml(data.location ?? "—")}`,
+    `Кімната: ${escapeHtml(data.location ?? "—")}\n\n` +
+    `Видача: ${escapeHtml(config.PICKUP_POINT)}`,
 
   profileSaved: `✅ Дані збережено — наступного разу вводити не потрібно.`,
 
@@ -64,7 +72,7 @@ export const texts = {
     `<b>Мій профіль</b>\n\n` +
     `Ім'я: ${escapeHtml(data.fullName ?? "—")}\n` +
     `Телефон: ${data.phone ? formatPhone(data.phone) : "—"}\n` +
-    `Куди нести: ${escapeHtml(data.location ?? "—")}\n` +
+    `Кімната: ${escapeHtml(data.location ?? "—")}\n` +
     `Роль: ${roleLabel(data.role)}`,
 
   help:
@@ -73,6 +81,9 @@ export const texts = {
     `2. Бот рахує сторінки й показує ціну: ${price()}.\n` +
     `3. Обираєте оплату: переказ на картку або готівкою при отриманні.\n` +
     `4. Працівник друкує, бот пише, коли можна забирати.\n\n` +
+    `Видача: <b>${escapeHtml(config.PICKUP_POINT)}</b>.\n` +
+    `Якщо у файлі дуже багато кольору або чорної заливки, працівник може ` +
+    `перерахувати ціну — ви отримаєте нову суму й підтвердите її.\n\n` +
     `<b>Ліміти:</b> ${limits()}\n` +
     `<b>Графік:</b> ${escapeHtml(config.WORK_HOURS)}\n` +
     (config.SUPPORT_CONTACT
@@ -114,9 +125,11 @@ export const texts = {
   orderRules:
     `<b>🖨 Нове замовлення</b>\n\n` +
     `Надішліть файли як <b>документи</b> (скріпка → «Файл»), не як фото.\n` +
-    `Формати: PDF, DOCX.\n\n` +
+    `Формати: PDF, DOCX. Друк кольоровий.\n\n` +
     `<b>Ліміти:</b> ${limits()}\n` +
-    `<b>Ціна:</b> ${price()}.\n\n` +
+    `<b>Ціна:</b> ${price()}.\n` +
+    `Якщо у файлі дуже багато кольору або чорної заливки, працівник може ` +
+    `перерахувати ціну — ви отримаєте нову суму й підтвердите її.\n\n` +
     `Після кожного файлу покажу кількість сторінок. Коли все надіслано — натисніть «✅ Завершити вибір».`,
 
   orderFileAccepted: (data: {
@@ -145,6 +158,9 @@ export const texts = {
     `🗑 Файл прибрано. Залишилось файлів: ${filesCount}, сторінок: ${pagesTotal}.`,
 
   orderProfileIncomplete: `Спочатку заповніть профіль: натисніть /start.`,
+  orderRoomRequired:
+    `Спочатку вкажіть кімнату у форматі <code>25б</code> або <code>33п</code> — ` +
+    `вона потрібна, щоб знайти вас у гуртожитку.`,
 
   orderLimitFiles: (max: number) =>
     `У замовленні вже ${max} файлів — більше не можна. Натисніть «✅ Завершити вибір».`,
@@ -167,7 +183,7 @@ export const texts = {
     copies: number;
     totalPages: number;
     amount: string;
-    location: string;
+    room: string;
     phone: string | null;
     comment?: string;
   }) =>
@@ -182,7 +198,8 @@ export const texts = {
       .join("\n") +
     `\n\nСторінок: <b>${data.totalPages}</b> × ${data.copies} коп.\n` +
     `До сплати: <b>${data.amount}</b>\n\n` +
-    `Куди нести: ${escapeHtml(data.location)}\n` +
+    `Кімната: ${escapeHtml(data.room)}\n` +
+    `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
     `Телефон: ${data.phone ? formatPhone(data.phone) : "—"}` +
     (data.comment ? `\nКоментар: ${escapeHtml(data.comment)}` : "") +
     (data.files.some((file) => !file.pagesExact)
@@ -197,12 +214,13 @@ export const texts = {
     amount: string;
     pages: number;
     copies: number;
-    location: string;
+    room: string;
   }) =>
     `✅ <b>Замовлення ${escapeHtml(data.code)} створено</b>\n\n` +
     `${data.pages} стор. × ${data.copies} = <b>${data.amount}</b>\n` +
     `Оплата: готівкою при отриманні.\n` +
-    `Заберіть: ${escapeHtml(data.location)}\n\n` +
+    `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
+    `Ваша кімната: ${escapeHtml(data.room)}\n\n` +
     `Ми напишемо, коли буде готово.`,
 
   orderCreatedCard: (data: {
@@ -210,17 +228,19 @@ export const texts = {
     amount: string;
     pages: number;
     copies: number;
-    location: string;
+    room: string;
   }) =>
     `✅ <b>Замовлення ${escapeHtml(data.code)} створено</b>\n\n` +
     `${data.pages} стор. × ${data.copies} = <b>${data.amount}</b>\n` +
-    `Заберіть: ${escapeHtml(data.location)}\n\n` +
+    `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
+    `Ваша кімната: ${escapeHtml(data.room)}\n\n` +
     (config.CARD_NUMBER
       ? `Перекажіть суму на картку:\n<code>${escapeHtml(config.CARD_NUMBER)}</code>\n` +
         (config.CARD_RECIPIENT ? `Отримувач: ${escapeHtml(config.CARD_RECIPIENT)}\n` : "") +
         `Призначення: ${escapeHtml(data.code)}\n\n` +
-        `Після оплати надішліть скріншот квитанції сюди — працівник підтвердить оплату.`
-      : `Реквізити картки надішле адміністратор. Після оплати надішліть квитанцію сюди.`),
+        `Після переказу натисніть «✅ Я оплатив» у «📄 Мої замовлення». ` +
+        `Квитанцію можна надіслати сюди за бажанням.`
+      : `Реквізити картки надішле адміністратор. Після переказу натисніть «✅ Я оплатив» у «📄 Мої замовлення».`),
 
   orderRateLimited: (limit: number) =>
     `Забагато замовлень за годину (ліміт — ${limit}). Спробуйте пізніше.`,
@@ -234,13 +254,13 @@ export const texts = {
     pages: number;
     copies: number;
     amount: string;
-    location: string;
+    room: string;
     payment: string;
     comment?: string;
   }) =>
     `🆕 <b>${escapeHtml(data.code)}</b> · ${data.pages} стор. × ${data.copies} · ` +
     `<b>${data.amount}</b> · ${escapeHtml(data.payment)}\n` +
-    `Куди: ${escapeHtml(data.location)}` +
+    `Кімната: ${escapeHtml(data.room)}` +
     (data.comment ? `\nКоментар: ${escapeHtml(data.comment)}` : ""),
 
   orderNotFound: `Замовлення не знайдено.`,
@@ -260,12 +280,12 @@ export const texts = {
     pages: number;
     copies: number;
     amount: string;
-    location: string;
+    room: string;
     payment: string;
     waiting: string;
   }) =>
     `<b>${escapeHtml(data.code)}</b> · ${data.pages} стор. × ${data.copies} = ${data.amount}\n` +
-    `${escapeHtml(data.location)} · ${escapeHtml(data.payment)} · чекає ${data.waiting}`,
+    `кімн. ${escapeHtml(data.room)} · ${escapeHtml(data.payment)} · чекає ${data.waiting}`,
 
   orderDetail: (data: {
     code: string;
@@ -275,7 +295,8 @@ export const texts = {
     pagesExact: boolean;
     copies: number;
     amount: string;
-    location: string;
+    priceConfirmed: boolean;
+    room: string;
     phone: string | null;
     comment?: string;
     clientName?: string;
@@ -287,8 +308,10 @@ export const texts = {
     (data.clientName ? `Клієнт: ${escapeHtml(data.clientName)}\n` : "") +
     `Оплата: ${data.paymentStatus}\n\n` +
     `Сторінок: ${data.pages}${data.pagesExact ? "" : " (≈)"} × ${data.copies} коп.\n` +
-    `Сума: <b>${data.amount}</b>\n` +
-    `Куди: ${escapeHtml(data.location)}\n` +
+    `Сума: <b>${data.amount}</b>` +
+    (data.priceConfirmed ? "\n" : " ⚠️ (очікує підтвердження клієнтом)\n") +
+    `Кімната: ${escapeHtml(data.room)}\n` +
+    `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
     (data.phone ? `Телефон: ${formatPhone(data.phone)}\n` : "") +
     (data.comment ? `Коментар: ${escapeHtml(data.comment)}\n` : "") +
     (data.holdReason ? `⚠️ Причина паузи: ${escapeHtml(data.holdReason)}\n` : "") +
@@ -300,8 +323,8 @@ export const texts = {
 
   orderTakenClient: (code: string) =>
     `🖨 Ваше замовлення <b>${escapeHtml(code)}</b> друкується.`,
-  orderReadyClient: (data: { code: string; location: string }) =>
-    `✅ <b>${escapeHtml(data.code)}</b> готове!\nЗабирайте: ${escapeHtml(data.location)}`,
+  orderReadyClient: (code: string) =>
+    `✅ <b>${escapeHtml(code)}</b> готове!\nЗабирайте: ${escapeHtml(config.PICKUP_POINT)}`,
   orderClosedClient: (code: string) =>
     `Дякуємо! Замовлення <b>${escapeHtml(code)}</b> видано.`,
   orderCancelledClient: (data: { code: string; reason?: string }) =>
@@ -333,6 +356,72 @@ export const texts = {
     `Вільних замовлень немає.\nНові з'являться тут автоматично — загляньте пізніше.`,
 
   ordersWithActions: `Оберіть замовлення, щоб побачити деталі.`,
+
+  // ------------------------------------------------- ціна, оплата, оголошення
+
+  pricePrompt: (current: string) =>
+    `<b>💰 Зміна ціни</b>\n\n` +
+    `Зараз: <b>${current}</b>.\n\n` +
+    `Введіть нову суму в гривнях (наприклад <code>45</code> або <code>45.50</code>).\n` +
+    `Можна додати причину через риску: <code>45 | багато кольору</code>.`,
+  priceInvalid:
+    `Некоректна сума. Введіть число від 1 до 1000 грн, наприклад <code>45</code> або <code>45.50 | багато кольору</code>.`,
+  priceChangedStaff: (data: { code: string; amount: string; reason: string }) =>
+    `✅ Ціну <b>${escapeHtml(data.code)}</b> змінено на <b>${data.amount}</b>.\n` +
+    `Причина: ${escapeHtml(data.reason)}.\n` +
+    `Клієнт має підтвердити нову суму.`,
+  priceChangedClient: (data: { code: string; amount: string; reason: string }) =>
+    `<b>💰 Змінилася ціна замовлення ${escapeHtml(data.code)}</b>\n\n` +
+    `Нова сума: <b>${data.amount}</b>\n` +
+    `Причина: ${escapeHtml(data.reason)}\n\n` +
+    `Погоджуєтеся? Якщо ні — замовлення буде скасовано.`,
+  priceAgreedClient: (code: string) =>
+    `✅ Дякуємо! Ціну замовлення <b>${escapeHtml(code)}</b> погоджено.`,
+  priceDeclinedClient: (code: string) =>
+    `Замовлення <b>${escapeHtml(code)}</b> скасовано без друку.`,
+  priceAgreedStaff: (data: { code: string; amount: string }) =>
+    `✅ Клієнт погодив ціну <b>${escapeHtml(data.code)}</b> — <b>${data.amount}</b>. Можна друкувати.`,
+  priceDeclinedStaff: (code: string) =>
+    `❌ Клієнт не погодився з ціною <b>${escapeHtml(code)}</b>. Замовлення скасовано.`,
+
+  rejectReasons: `Чому відхиляємо замовлення?`,
+  rejectReasonButton: {
+    color: "Багато кольору",
+    file: "Файл нечитабельний",
+  } as const,
+  rejectedStaff: (code: string) => `❌ Замовлення <b>${escapeHtml(code)}</b> відхилено.`,
+  rejectedClient: (data: { code: string; reason: string }) =>
+    `Замовлення <b>${escapeHtml(data.code)}</b> відхилено.\n` +
+    `Причина: ${escapeHtml(data.reason)}.`,
+
+  paymentRequestedClient: `✅ Позначили, що ви оплатили. Працівник перевірить і підтвердить.`,
+  paymentRequestedStaff: (data: { code: string; amount: string }) =>
+    `💳 Клієнт позначив оплату <b>${escapeHtml(data.code)}</b> — <b>${data.amount}</b>. ` +
+    `Перевірте надходження й підтвердіть у картці замовлення.`,
+  paymentConfirmedClient: (code: string) =>
+    `✅ Оплату замовлення <b>${escapeHtml(code)}</b> підтверджено.`,
+
+  staffMenu: `<b>📢 Службове меню</b>\n\nОголошення та прийом замовлень.`,
+  orderingStatus: (enabled: boolean) =>
+    enabled ? `Прийом замовлень: <b>увімкнено</b> ✅` : `Прийом замовлень: <b>вимкнено</b> ⏸`,
+  announcementPrompt:
+    `Напишіть текст оголошення для всіх користувачів (до 2000 символів).\n\n` +
+    `Наприклад: «Сьогодні не друкуємо, немає паперу. Вибачте!»`,
+  announcementTooShort: `Оголошення закоротке — напишіть хоча б кілька слів.`,
+  announcementTooLong: `Оголошення задовге — максимум 2000 символів.`,
+  announcementSent: (data: { sent: number; failed: number }) =>
+    `📢 Оголошення надіслано.\nДоставлено: <b>${data.sent}</b>` +
+    (data.failed > 0 ? `, не доставлено: ${data.failed}` : "") +
+    `.`,
+  orderingEnabledMessage: `▶️ Прийом замовлень увімкнено.`,
+  orderingDisabledMessage:
+    `⏸ Прийом замовлень вимкнено. Нові замовлення створювати не можна, ` +
+    `а ті, що вже в черзі, обробляються далі.`,
+  orderingDisabled: (announcement: string | null) =>
+    `⏸ <b>Прийом замовлень тимчасово призупинено.</b>\n\n` +
+    (announcement ? `${escapeHtml(announcement)}\n\n` : "") +
+    `Спробуйте пізніше.`,
+  orderingDisabledShort: `⏸ Прийом замовлень тимчасово призупинено.`,
 
   cancelDone: `Дію скасовано.`,
   fallback: `Скористайтеся меню нижче або натисніть /start.`,

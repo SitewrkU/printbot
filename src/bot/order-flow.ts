@@ -8,6 +8,8 @@ import {
   totalPages,
 } from "../domain/orders.js";
 import { formatUah } from "../domain/pricing.js";
+import { isValidRoom, normalizeRoom } from "../domain/rooms.js";
+import { getAnnouncement, isOrderingEnabled } from "../domain/settings.js";
 import { paymentMethodLabel, type PaymentMethod } from "../domain/statuses.js";
 import { logger } from "../infra/logger.js";
 import { FileTooLargeError, downloadTelegramFile } from "../infra/telegram-file.js";
@@ -18,7 +20,9 @@ import {
   orderCopiesKeyboard,
   orderCreatedKeyboard,
   orderFilesKeyboard,
+  roomRequiredKeyboard,
 } from "./keyboards.js";
+import { notifyStaff } from "./notify.js";
 import {
   clearState,
   getState,
@@ -42,11 +46,28 @@ function hasOrder(state: ConversationState | undefined): state is ActiveOrderSta
   return Boolean(state?.order);
 }
 
+/** Захист від подвійного кліку по кнопці оплати. */
+const submitting = new Set<number>();
+
 export async function startNewOrder(ctx: BotContext): Promise<void> {
   const user = currentUser(ctx);
 
-  if (!user.fullName || !user.phone || !user.location) {
+  if (!(await isOrderingEnabled())) {
+    await editOrReply(
+      ctx,
+      texts.orderingDisabled(await getAnnouncement()),
+      backToMenuKeyboard(),
+    );
+    return;
+  }
+
+  if (!user.fullName || !user.phone) {
     await editOrReply(ctx, texts.orderProfileIncomplete, backToMenuKeyboard());
+    return;
+  }
+
+  if (!isValidRoom(user.location)) {
+    await editOrReply(ctx, texts.orderRoomRequired, roomRequiredKeyboard());
     return;
   }
 
@@ -349,7 +370,7 @@ async function showSummary(
       copies,
       totalPages: totalPages(state.order.files),
       amount: formatUah(amount),
-      location: user.location ?? "—",
+      room: normalizeRoom(user.location ?? "") ?? "—",
       phone: user.phone,
       comment: state.order.comment,
     }),
@@ -363,10 +384,21 @@ async function submitOrder(
   paymentMethod: PaymentMethod,
 ): Promise<void> {
   const user = currentUser(ctx);
+  const room = normalizeRoom(user.location ?? "");
 
-  if (!user.location || !user.phone) {
+  if (!user.phone || !room) {
     clearState(conversationKey(ctx));
-    await replyHtml(ctx, texts.orderProfileIncomplete, backToMenuKeyboard());
+    await replyHtml(ctx, texts.orderRoomRequired, roomRequiredKeyboard());
+    return;
+  }
+
+  if (!(await isOrderingEnabled())) {
+    clearState(conversationKey(ctx));
+    await replyHtml(
+      ctx,
+      texts.orderingDisabled(await getAnnouncement()),
+      backToMenuKeyboard(),
+    );
     return;
   }
 
@@ -375,71 +407,74 @@ async function submitOrder(
     return;
   }
 
-  const recent = await countOrdersLastHour(user.id);
-  if (recent >= config.ORDER_RATE_LIMIT_PER_HOUR) {
-    await replyHtml(ctx, texts.orderRateLimited(config.ORDER_RATE_LIMIT_PER_HOUR));
+  const submitterId = ctx.from?.id;
+  if (submitterId && submitting.has(submitterId)) {
     return;
+  }
+  if (submitterId) {
+    submitting.add(submitterId);
   }
 
   try {
-    const order = await createOrder({
-      clientId: user.id,
-      files: state.order.files.map((file) => ({
-        fileId: file.fileId,
-        fileName: file.fileName,
-        mime: file.mime,
-        sizeBytes: file.sizeBytes,
-        pages: file.pages,
-        pagesExact: file.pagesExact,
-        sha256: file.sha256,
-      })),
-      copies: state.order.copies,
-      comment: state.order.comment,
-      location: user.location,
-      phone: user.phone,
-      paymentMethod,
-      pricePerPageKop: config.PRICE_PER_PAGE_KOP,
-    });
+    const recent = await countOrdersLastHour(user.id);
+    if (recent >= config.ORDER_RATE_LIMIT_PER_HOUR) {
+      await replyHtml(ctx, texts.orderRateLimited(config.ORDER_RATE_LIMIT_PER_HOUR));
+      return;
+    }
 
-    clearState(conversationKey(ctx));
+    try {
+      const order = await createOrder({
+        clientId: user.id,
+        files: state.order.files.map((file) => ({
+          fileId: file.fileId,
+          fileName: file.fileName,
+          mime: file.mime,
+          sizeBytes: file.sizeBytes,
+          pages: file.pages,
+          pagesExact: file.pagesExact,
+          sha256: file.sha256,
+        })),
+        copies: state.order.copies,
+        comment: state.order.comment,
+        location: room,
+        phone: user.phone,
+        paymentMethod,
+        pricePerPageKop: config.PRICE_PER_PAGE_KOP,
+      });
 
-    const amount = formatUah(order.amountKop);
-    const created = {
-      code: order.code,
-      amount,
-      pages: order.pagesTotal,
-      copies: order.copies,
-      location: order.locationSnapshot,
-    };
+      clearState(conversationKey(ctx));
 
-    await ctx.reply(
-      paymentMethod === "cash"
-        ? texts.orderCreatedCash(created)
-        : texts.orderCreatedCard(created),
-      { parse_mode: "HTML", reply_markup: orderCreatedKeyboard() },
-    );
+      const amount = formatUah(order.amountKop);
+      const created = {
+        code: order.code,
+        amount,
+        pages: order.pagesTotal,
+        copies: order.copies,
+        room: order.locationSnapshot,
+      };
 
-    await notifyStaff(
-      ctx,
-      texts.staffNewOrder({
-        ...created,
-        payment: paymentMethodLabel(paymentMethod),
-        comment: order.comment ?? undefined,
-      }),
-    );
-  } catch (error) {
-    logger.error({ err: error }, "order creation failed");
-    await replyHtml(ctx, texts.orderCreateFailed, backToMenuKeyboard());
-  }
-}
+      await ctx.reply(
+        paymentMethod === "cash"
+          ? texts.orderCreatedCash(created)
+          : texts.orderCreatedCard(created),
+        { parse_mode: "HTML", reply_markup: orderCreatedKeyboard() },
+      );
 
-async function notifyStaff(ctx: BotContext, text: string): Promise<void> {
-  if (!config.STAFF_CHAT_ID) {
-    return;
-  }
-  try {
-    await ctx.api.sendMessage(config.STAFF_CHAT_ID, text, { parse_mode: "HTML" });
-  } catch (error) {
-    logger.warn({ err: error }, "staff chat notification failed");
+      await notifyStaff(
+        ctx,
+        texts.staffNewOrder({
+          ...created,
+          payment: paymentMethodLabel(paymentMethod),
+          comment: order.comment ?? undefined,
+        }),
+      );
+    } catch (error) {
+      logger.error({ err: error }, "order creation failed");
+      await replyHtml(ctx, texts.orderCreateFailed, backToMenuKeyboard());
+    }
+  } finally {
+    if (submitterId) {
+      submitting.delete(submitterId);
+    }
   }
 }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calcAmountKop, formatUah } from "../src/domain/pricing.js";
+import {
+  calcAmountKop,
+  formatUah,
+  parsePriceInput,
+} from "../src/domain/pricing.js";
 
 const PRICE = 300;
 
@@ -28,5 +32,32 @@ describe("formatUah", () => {
     expect(formatUah(7200)).toBe("72,00 грн");
     expect(formatUah(305)).toBe("3,05 грн");
     expect(formatUah(0)).toBe("0,00 грн");
+  });
+});
+
+describe("parsePriceInput", () => {
+  it("читає суму в гривнях", () => {
+    expect(parsePriceInput("45")).toEqual({
+      amountKop: 4500,
+      reason: "багато кольору / заливки",
+    });
+    expect(parsePriceInput("45.50")).toEqual({
+      amountKop: 4550,
+      reason: "багато кольору / заливки",
+    });
+  });
+
+  it("приймає кому та причину через риску", () => {
+    expect(parsePriceInput("60,25 | багато чорного")).toEqual({
+      amountKop: 6025,
+      reason: "багато чорного",
+    });
+  });
+
+  it("відхиляє нуль, від'ємні та завеликі суми", () => {
+    expect(parsePriceInput("0")).toBeNull();
+    expect(parsePriceInput("-5")).toBeNull();
+    expect(parsePriceInput("1001")).toBeNull();
+    expect(parsePriceInput("abc")).toBeNull();
   });
 });
