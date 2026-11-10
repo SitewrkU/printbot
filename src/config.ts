@@ -26,6 +26,12 @@ const envSchema = z.object({
   MAX_FILES_PER_ORDER: z.coerce.number().int().positive().default(10),
   MAX_PAGES_PER_ORDER: z.coerce.number().int().positive().default(300),
   MAX_COPIES: z.coerce.number().int().positive().default(50),
+  MAX_FILE_SIZE_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20 * 1024 * 1024),
+  ORDER_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(5),
 
   CARD_TRANSFER_ENABLED: booleanString.default("true"),
   CARD_NUMBER: z.string().default(""),

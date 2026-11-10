@@ -9,9 +9,11 @@ import {
   handleCancel,
   handleContact,
   handleHelp,
+  handleReceipt,
   handleStart,
   handleText,
 } from "./handlers.js";
+import { handleOrderDocument } from "./order-flow.js";
 import { texts } from "./texts.js";
 
 export function createBot(): Bot<BotContext> {
@@ -31,12 +33,10 @@ export function createBot(): Bot<BotContext> {
   bot.command("admin", handleAdminCommand);
 
   bot.on("message:contact", handleContact);
+  bot.on("message:photo", handleReceipt);
+  bot.on("message:document", handleOrderDocument);
   bot.on("message:text", handleText);
   bot.on("callback_query:data", handleCallback);
-
-  bot.on("message:document", async (ctx) => {
-    await ctx.reply(texts.newOrderSoon, { parse_mode: "HTML" });
-  });
 
   bot.on("message", async (ctx) => {
     await ctx.reply(texts.unknownMessage, { parse_mode: "HTML" });

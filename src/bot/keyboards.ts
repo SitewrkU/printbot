@@ -1,4 +1,5 @@
 import { InlineKeyboard, Keyboard } from "grammy";
+import { config } from "../app-config.js";
 import { displayName } from "../domain/users.js";
 import { isStaff, type Role } from "../domain/roles.js";
 import type { User } from "@prisma/client";
@@ -87,6 +88,57 @@ export function backToMenuKeyboard(): InlineKeyboard {
 
 export function editProfileKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("◀️ До профілю", "menu:profile");
+}
+
+export function orderFilesKeyboard(fileCount: number): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (fileCount > 0) {
+    keyboard.text("✅ Завершити вибір", "order:finish").row();
+    keyboard.text("🗑 Прибрати останній", "order:remove").row();
+  }
+
+  keyboard.text("◀️ Скасувати", "menu:main");
+  return keyboard;
+}
+
+export function orderCopiesKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("1", "order:copies:1")
+    .text("2", "order:copies:2")
+    .text("3", "order:copies:3")
+    .row()
+    .text("5", "order:copies:5")
+    .text("10", "order:copies:10")
+    .row()
+    .text("✏️ Інше", "order:copies_custom")
+    .row()
+    .text("◀️ До файлів", "order:files_back");
+}
+
+export function orderConfirmKeyboard(hasComment: boolean): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (config.CARD_TRANSFER_ENABLED) {
+    keyboard.text("💳 Переказ на картку", "order:pay:card_transfer").row();
+  }
+
+  keyboard.text("💵 Готівка при отриманні", "order:pay:cash").row();
+  keyboard
+    .text(hasComment ? "✏️ Змінити коментар" : "✏️ Додати коментар", "order:comment")
+    .row()
+    .text("🔢 Змінити копії", "order:copies_back")
+    .row()
+    .text("◀️ Скасувати", "menu:main");
+
+  return keyboard;
+}
+
+export function orderCreatedKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("📄 Мої замовлення", "menu:orders")
+    .row()
+    .text("◀️ Меню", "menu:main");
 }
 
 function truncate(value: string, max: number): string {

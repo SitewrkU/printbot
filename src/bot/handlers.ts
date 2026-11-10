@@ -1,3 +1,4 @@
+import { config } from "../app-config.js";
 import { prisma } from "../infra/db.js";
 import { logger } from "../infra/logger.js";
 import { formatUah } from "../domain/pricing.js";
@@ -17,7 +18,15 @@ import {
   profileKeyboard,
   workersKeyboard,
 } from "./keyboards.js";
-import { clearState, getState, setState, type Draft, type Step } from "./state.js";
+import { handleOrderCallback, handleOrderText, startNewOrder } from "./order-flow.js";
+import {
+  clearState,
+  getState,
+  isOrderStep,
+  setState,
+  type Draft,
+  type Step,
+} from "./state.js";
 import { texts } from "./texts.js";
 import { editOrReply, replyHtml } from "./utils.js";
 
@@ -331,6 +340,11 @@ export async function handleText(ctx: BotContext): Promise<void> {
     return;
   }
 
+  if (isOrderStep(state.step)) {
+    await handleOrderText(ctx, state);
+    return;
+  }
+
   const text = ctx.message?.text?.trim() ?? "";
 
   switch (state.step) {
@@ -445,6 +459,27 @@ export async function handleHelp(ctx: BotContext): Promise<void> {
   });
 }
 
+/** Скріншот квитанції: пересилаємо працівникам, щоб вони підтвердили оплату. */
+export async function handleReceipt(ctx: BotContext): Promise<void> {
+  const message = ctx.message;
+  if (!message) {
+    return;
+  }
+
+  if (!config.STAFF_CHAT_ID) {
+    await replyHtml(ctx, texts.receiptNoStaff);
+    return;
+  }
+
+  try {
+    await ctx.api.forwardMessage(config.STAFF_CHAT_ID, message.chat.id, message.message_id);
+    await replyHtml(ctx, texts.receiptForwarded);
+  } catch (error) {
+    logger.warn({ err: error }, "receipt forward failed");
+    await replyHtml(ctx, texts.receiptFailed);
+  }
+}
+
 export async function handleAdminCommand(ctx: BotContext): Promise<void> {
   if (!canManageWorkers(roleOf(currentUser(ctx)))) {
     await replyHtml(ctx, texts.adminOnly);
@@ -473,12 +508,18 @@ export async function handleCallback(ctx: BotContext): Promise<void> {
   await ctx.answerCallbackQuery();
 
   try {
+    if (data.startsWith("order:")) {
+      await handleOrderCallback(ctx, data);
+      return;
+    }
+
     if (data === "menu:main") {
+      clearState(stateKey(ctx));
       await showMainMenu(ctx);
       return;
     }
     if (data === "menu:new") {
-      await editOrReply(ctx, texts.newOrderSoon, backToMenuKeyboard());
+      await startNewOrder(ctx);
       return;
     }
     if (data === "menu:orders") {
