@@ -3,6 +3,14 @@ import { formatUah } from "../domain/pricing.js";
 import { formatPhone } from "../domain/phone.js";
 import { roleLabel, type Role } from "../domain/roles.js";
 
+export function formatDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("uk-UA", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Europe/Kyiv",
+  }).format(date);
+}
+
 export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -74,10 +82,6 @@ export const texts = {
   ordersEmpty: `У вас ще немає замовлень. Натисніть «🖨 Нове замовлення», щоб створити перше.`,
 
   queueEmpty: `Зараз вільних замовлень немає.`,
-
-  queueSoon:
-    `📋 Черга з'явиться на етапі E2.\n` +
-    `Поки що тут нічого немає.`,
 
   adminHome: `<b>⚙️ Адмінка</b>\n\nКерування працівниками та службові дії.`,
   adminWorkers: (count: number) =>
@@ -246,6 +250,90 @@ export const texts = {
   receiptForwarded: `✅ Квитанцію передано працівнику. Після перевірки оплати замовлення піде в друк.`,
   receiptNoStaff: `Квитанцію отримано. Працівник перевірить оплату найближчим часом.`,
   receiptFailed: `Не вдалося передати квитанцію. Напишіть адміністратору.`,
+
+  // ------------------------------------------------------------------ черга
+
+  queueHeader: (freeCount: number, mineCount: number) =>
+    `<b>📋 Черга</b>\n\n` +
+    `Вільних: <b>${freeCount}</b> · у мене в роботі: <b>${mineCount}</b>`,
+
+  queueItem: (data: {
+    code: string;
+    pages: number;
+    copies: number;
+    amount: string;
+    location: string;
+    payment: string;
+    waiting: string;
+  }) =>
+    `<b>${escapeHtml(data.code)}</b> · ${data.pages} стор. × ${data.copies} = ${data.amount}\n` +
+    `${escapeHtml(data.location)} · ${escapeHtml(data.payment)} · чекає ${data.waiting}`,
+
+  orderDetail: (data: {
+    code: string;
+    status: string;
+    paymentStatus: string;
+    pages: number;
+    pagesExact: boolean;
+    copies: number;
+    amount: string;
+    location: string;
+    phone: string | null;
+    comment?: string;
+    clientName?: string;
+    files: ReadonlyArray<{ fileName: string; pages: number }>;
+    createdAt: Date;
+  }) =>
+    `<b>${escapeHtml(data.code)}</b> · ${data.status}\n` +
+    (data.clientName ? `Клієнт: ${escapeHtml(data.clientName)}\n` : "") +
+    `Оплата: ${data.paymentStatus}\n\n` +
+    `Сторінок: ${data.pages}${data.pagesExact ? "" : " (≈)"} × ${data.copies} коп.\n` +
+    `Сума: <b>${data.amount}</b>\n` +
+    `Куди: ${escapeHtml(data.location)}\n` +
+    (data.phone ? `Телефон: ${formatPhone(data.phone)}\n` : "") +
+    (data.comment ? `Коментар: ${escapeHtml(data.comment)}\n` : "") +
+    `\nФайли:\n` +
+    data.files
+      .map((file, index) => `${index + 1}. ${escapeHtml(file.fileName)} — ${file.pages} стор.`)
+      .join("\n") +
+    `\n\nСтворено: ${formatDateTime(data.createdAt)}`,
+
+  orderTaken: (code: string) => `✅ Ви взяли <b>${escapeHtml(code)}</b> в роботу.`,
+  orderTakenClient: (code: string) =>
+    `🖨 Ваше замовлення <b>${escapeHtml(code)}</b> друкується.`,
+  orderReady: (code: string) => `✅ <b>${escapeHtml(code)}</b> готове до видачі.`,
+  orderReadyClient: (data: { code: string; location: string }) =>
+    `✅ <b>${escapeHtml(data.code)}</b> готове!\nЗабирайте: ${escapeHtml(data.location)}`,
+  orderClosedClient: (code: string) =>
+    `Дякуємо! Замовлення <b>${escapeHtml(code)}</b> видано.`,
+  orderCancelledClient: (data: { code: string; reason?: string }) =>
+    `Замовлення <b>${escapeHtml(data.code)}</b> скасовано.` +
+    (data.reason ? `\nПричина: ${escapeHtml(data.reason)}` : ""),
+  orderHoldClient: (data: { code: string; reason: string }) =>
+    `⚠️ Щодо замовлення <b>${escapeHtml(data.code)}</b>: ${escapeHtml(data.reason)}.\n` +
+    `Працівник зв'яжеться з вами.`,
+
+  orderAlreadyTaken: `Це замовлення вже взяв інший працівник.`,
+  orderActionNotAllowed: `Ця дія зараз недоступна.`,
+  orderFilesUnavailable: `Не вдалося надіслати файли: можливо, клієнт видалив повідомлення.`,
+  orderFilesSent: `Файли надіслано вище.`,
+
+  cashQuestion: (amount: string) => `Гроші отримано (${amount})?`,
+  cashConfirmed: `✅ Оплату позначено.`,
+  cashNotYet: `Ок, оплата залишається непідтвердженою.`,
+
+  holdReasons: `Що сталося із замовленням?`,
+  holdReasonButton: {
+    broken: "Файл не читається",
+    paper: "Немає паперу",
+    client: "Клієнт не відповідає",
+  } as const,
+  holdSet: (reason: string) => `⚠️ Замовлення на паузі: ${escapeHtml(reason)}.`,
+
+  queueHowTo:
+    `Вільних замовлень немає.\nНові з'являться тут автоматично — загляньте пізніше.`,
+
+  ordersWithActions: `Оберіть замовлення, щоб побачити деталі.`,
 
   cancelDone: `Дію скасовано.`,
   fallback: `Скористайтеся меню нижче або натисніть /start.`,

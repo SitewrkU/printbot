@@ -134,6 +134,80 @@ export function orderConfirmKeyboard(hasComment: boolean): InlineKeyboard {
   return keyboard;
 }
 
+export function cashConfirmKeyboard(orderId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Так, отримав", `q:cash:${orderId}`)
+    .text("Пізніше", `q:view:${orderId}`);
+}
+
+export function orderDetailKeyboard(params: {
+  orderId: string;
+  code: string;
+  isStaff: boolean;
+  isMine: boolean;
+  status: string;
+  paymentStatus: string;
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  const id = params.orderId;
+
+  if (params.isStaff && params.status === "QUEUED") {
+    keyboard.text("✅ Взяти в роботу", `q:take:${id}`).row();
+  }
+
+  if (params.isStaff && params.status === "IN_PROGRESS" && params.isMine) {
+    keyboard.text("✅ Готово", `q:ready:${id}`).row();
+    keyboard.text("⚠️ Проблема", `q:hold:${id}`).row();
+  }
+
+  if (
+    params.isStaff &&
+    params.status === "READY" &&
+    params.paymentStatus !== "paid"
+  ) {
+    keyboard.text("💵 Гроші отримано", `q:cash:${id}`).row();
+  }
+
+  if (!params.isStaff && params.status === "QUEUED") {
+    keyboard.text("❌ Скасувати замовлення", `o:cancel:${id}`).row();
+  }
+
+  if (!params.isStaff && params.status === "READY") {
+    keyboard.text("✅ Забрав", `o:close:${id}`).row();
+  }
+
+  if (params.isStaff) {
+    keyboard.text("📎 Надіслати файли", `q:files:${id}`);
+  }
+
+  keyboard.text("◀️ Назад", params.isStaff ? "menu:queue" : "menu:orders");
+  return keyboard;
+}
+
+export function holdReasonsKeyboard(orderId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("📄 Файл не читається", `q:holdr:${orderId}:broken`)
+    .row()
+    .text("🧻 Немає паперу", `q:holdr:${orderId}:paper`)
+    .row()
+    .text("📵 Клієнт не відповідає", `q:holdr:${orderId}:client`)
+    .row()
+    .text("◀️ Назад", `q:view:${orderId}`);
+}
+
+export function clientOrdersKeyboard(
+  orders: ReadonlyArray<{ id: string; code: string; status: string }>,
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const order of orders) {
+    keyboard.text(order.code, `o:view:${order.id}`).row();
+  }
+
+  keyboard.text("◀️ Меню", "menu:main");
+  return keyboard;
+}
+
 export function orderCreatedKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("📄 Мої замовлення", "menu:orders")

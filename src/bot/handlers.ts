@@ -1,10 +1,8 @@
 import { config } from "../app-config.js";
 import { prisma } from "../infra/db.js";
 import { logger } from "../infra/logger.js";
-import { formatUah } from "../domain/pricing.js";
 import { normalizePhone } from "../domain/phone.js";
 import { canManageWorkers, isRole, isStaff, type Role } from "../domain/roles.js";
-import { statusLabel } from "../domain/statuses.js";
 import { addWorker, displayName, listWorkers, removeWorker, saveProfile } from "../domain/users.js";
 import { currentUser, type BotContext } from "./context.js";
 import {
@@ -19,6 +17,12 @@ import {
   workersKeyboard,
 } from "./keyboards.js";
 import { handleOrderCallback, handleOrderText, startNewOrder } from "./order-flow.js";
+import {
+  handleClientOrderCallback,
+  handleQueueCallback,
+  showClientOrders,
+  showQueue,
+} from "./queue-flow.js";
 import {
   clearState,
   getState,
@@ -142,47 +146,6 @@ async function showProfile(ctx: BotContext): Promise<void> {
     }),
     profileKeyboard(),
   );
-}
-
-async function showOrders(ctx: BotContext): Promise<void> {
-  const user = currentUser(ctx);
-  const orders = await prisma.order.findMany({
-    where: { clientId: user.id },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-  });
-
-  if (orders.length === 0) {
-    await editOrReply(ctx, texts.ordersEmpty, backToMenuKeyboard());
-    return;
-  }
-
-  const body = orders
-    .map((order) =>
-      texts.orderLine({
-        code: order.code,
-        status: statusLabel(order.status),
-        amount: formatUah(order.amountKop),
-        pages: order.pagesTotal,
-        copies: order.copies,
-      }),
-    )
-    .join("\n\n");
-
-  await editOrReply(
-    ctx,
-    `<b>Мої замовлення</b>\n\n${body}`,
-    backToMenuKeyboard(),
-  );
-}
-
-async function showQueue(ctx: BotContext): Promise<void> {
-  const queued = await prisma.order.count({ where: { status: "QUEUED" } });
-  const body =
-    queued === 0
-      ? texts.queueEmpty
-      : `Вільних замовлень: <b>${queued}</b>.`;
-  await editOrReply(ctx, `${body}\n\n${texts.queueSoon}`, backToMenuKeyboard());
 }
 
 // --------------------------------------------------------------------- зміни
@@ -522,6 +485,14 @@ export async function handleCallback(ctx: BotContext): Promise<void> {
       await handleOrderCallback(ctx, data);
       return;
     }
+    if (data.startsWith("q:")) {
+      await handleQueueCallback(ctx, data);
+      return;
+    }
+    if (data.startsWith("o:")) {
+      await handleClientOrderCallback(ctx, data);
+      return;
+    }
 
     if (data === "menu:main") {
       clearState(stateKey(ctx));
@@ -533,7 +504,7 @@ export async function handleCallback(ctx: BotContext): Promise<void> {
       return;
     }
     if (data === "menu:orders") {
-      await showOrders(ctx);
+      await showClientOrders(ctx);
       return;
     }
     if (data === "menu:profile") {
@@ -545,10 +516,6 @@ export async function handleCallback(ctx: BotContext): Promise<void> {
       return;
     }
     if (data === "menu:queue") {
-      if (!isStaff(roleOf(currentUser(ctx)))) {
-        await editOrReply(ctx, texts.adminOnly, backToMenuKeyboard());
-        return;
-      }
       await showQueue(ctx);
       return;
     }

@@ -1,8 +1,11 @@
 import { createBot } from "./bot/index.js";
 import { config } from "./app-config.js";
+import { autoCloseReadyOrders } from "./domain/queue.js";
 import { prisma } from "./infra/db.js";
 import { logger } from "./infra/logger.js";
 import { createServer } from "./http/server.js";
+
+const AUTO_CLOSE_INTERVAL_MS = 10 * 60 * 1000;
 
 async function main(): Promise<void> {
   const app = createServer();
@@ -20,11 +23,22 @@ async function main(): Promise<void> {
   ]);
 
   let shuttingDown = false;
+  const autoCloseTimer = setInterval(() => {
+    void autoCloseReadyOrders()
+      .then((closed) => {
+        if (closed > 0) {
+          logger.info({ closed }, "auto-closed ready orders");
+        }
+      })
+      .catch((error) => logger.error({ err: error }, "auto-close failed"));
+  }, AUTO_CLOSE_INTERVAL_MS);
+
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) {
       return;
     }
     shuttingDown = true;
+    clearInterval(autoCloseTimer);
     logger.info({ signal }, "shutting down");
 
     try {
