@@ -1,0 +1,118 @@
+// PrintBot — схема БД (PostgreSQL)
+// Статуси зберігаємо рядками: набір статусів живе в domain/statuses.ts і перевіряється zod.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         BigInt   @id @default(autoincrement())
+  telegramId BigInt   @unique
+  role       String   @default("client") // client | worker | admin
+  fullName   String?
+  phone      String?
+  location   String? // корпус + кімната / група
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders            Order[]      @relation("ClientOrders")
+  acceptedOrders    Order[]      @relation("AcceptedBy")
+  events            OrderEvent[]
+  confirmedPayments Payment[]    @relation("PaymentConfirmedBy")
+
+  @@map("users")
+}
+
+model Order {
+  id              BigInt    @id @default(autoincrement())
+  code            String    @unique // PB-0107
+  clientId        BigInt
+  status          String    @default("QUEUED") // QUEUED | IN_PROGRESS | READY | CLOSED | ON_HOLD | CANCELLED | EXPIRED
+  paymentMethod   String // cash | card_transfer | monobank
+  paymentStatus   String    @default("unpaid") // unpaid | pending_review | paid | refunded
+  pagesTotal      Int
+  pagesExact      Boolean   @default(true)
+  copies          Int
+  amountKop       Int
+  comment         String?
+  locationSnapshot String
+  phoneSnapshot   String?
+  invoiceId       String?
+  acceptedById    BigInt?
+  holdReason      String?
+  createdAt       DateTime  @default(now())
+  acceptedAt      DateTime?
+  readyAt         DateTime?
+  closedAt        DateTime?
+  expiresAt       DateTime?
+
+  client     User         @relation("ClientOrders", fields: [clientId], references: [id])
+  acceptedBy User?        @relation("AcceptedBy", fields: [acceptedById], references: [id])
+  files      OrderFile[]
+  events     OrderEvent[]
+  payments   Payment[]
+
+  @@index([status, createdAt])
+  @@index([clientId, createdAt])
+  @@map("orders")
+}
+
+model OrderFile {
+  id               BigInt   @id @default(autoincrement())
+  orderId          BigInt
+  telegramFileId   String
+  fileName         String
+  mime             String?
+  sizeBytes        Int?
+  pages            Int
+  pagesExact       Boolean  @default(false)
+  sha256           String?
+  createdAt        DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_files")
+}
+
+model OrderEvent {
+  id        BigInt   @id @default(autoincrement())
+  orderId   BigInt
+  actorId   BigInt?
+  type      String // status_change | price_change | payment_confirmed | file_added | ...
+  fromValue String?
+  toValue   String?
+  reason    String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
+}
+
+model Payment {
+  id          BigInt   @id @default(autoincrement())
+  orderId     BigInt
+  provider    String   @default("manual") // manual | monobank
+  status      String // pending_review | paid | refunded | failed
+  amountKop   Int
+  confirmedById BigInt?
+  raw         Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  order       Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  confirmedBy User? @relation("PaymentConfirmedBy", fields: [confirmedById], references: [id])
+
+  @@index([orderId])
+  @@map("payments")
+}
