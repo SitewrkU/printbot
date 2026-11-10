@@ -81,8 +81,6 @@ export const texts = {
 
   ordersEmpty: `У вас ще немає замовлень. Натисніть «🖨 Нове замовлення», щоб створити перше.`,
 
-  queueEmpty: `Зараз вільних замовлень немає.`,
-
   adminHome: `<b>⚙️ Адмінка</b>\n\nКерування працівниками та службові дії.`,
   adminWorkers: (count: number) =>
     `<b>👥 Працівники</b>\n\nАктивних: ${count}.\n` +
@@ -300,10 +298,8 @@ export const texts = {
       .join("\n") +
     `\n\nСтворено: ${formatDateTime(data.createdAt)}`,
 
-  orderTaken: (code: string) => `✅ Ви взяли <b>${escapeHtml(code)}</b> в роботу.`,
   orderTakenClient: (code: string) =>
     `🖨 Ваше замовлення <b>${escapeHtml(code)}</b> друкується.`,
-  orderReady: (code: string) => `✅ <b>${escapeHtml(code)}</b> готове до видачі.`,
   orderReadyClient: (data: { code: string; location: string }) =>
     `✅ <b>${escapeHtml(data.code)}</b> готове!\nЗабирайте: ${escapeHtml(data.location)}`,
   orderClosedClient: (code: string) =>
@@ -320,7 +316,6 @@ export const texts = {
   orderAlreadyTaken: `Це замовлення вже взяв інший працівник.`,
   orderActionNotAllowed: `Ця дія зараз недоступна.`,
   orderFilesUnavailable: `Не вдалося надіслати файли: можливо, клієнт видалив повідомлення.`,
-  orderFilesSent: `Файли надіслано вище.`,
 
   cashQuestion: (amount: string) => `Гроші отримано (${amount})?`,
   cashConfirmed: `✅ Оплату позначено.`,

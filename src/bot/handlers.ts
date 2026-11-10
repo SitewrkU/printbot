@@ -2,7 +2,7 @@ import { config } from "../app-config.js";
 import { prisma } from "../infra/db.js";
 import { logger } from "../infra/logger.js";
 import { normalizePhone } from "../domain/phone.js";
-import { canManageWorkers, isRole, isStaff, type Role } from "../domain/roles.js";
+import { canManageWorkers, isRole, type Role } from "../domain/roles.js";
 import { addWorker, displayName, listWorkers, removeWorker, saveProfile } from "../domain/users.js";
 import { currentUser, type BotContext } from "./context.js";
 import {
