@@ -105,9 +105,20 @@ export async function transitionOrder(input: TransitionInput): Promise<Order> {
       data.holdReason = input.reason ?? null;
     }
 
-    const updated = await tx.order.update({
-      where: { id: input.orderId },
+    const claimed = await tx.order.updateMany({
+      where: { id: input.orderId, status: order.status },
       data,
+    });
+
+    if (claimed.count === 0) {
+      throw new OrderActionError(
+        "invalid_transition",
+        "Замовлення вже змінило статус",
+      );
+    }
+
+    const updated = await tx.order.findUniqueOrThrow({
+      where: { id: input.orderId },
     });
 
     await tx.orderEvent.create({
