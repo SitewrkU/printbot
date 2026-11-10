@@ -16,7 +16,7 @@ Telegram-бот для замовлень друку: клієнт надсил�
 ## Швидкий старт
 
 ```bash
-# 1. Підняти Postgres
+# 1. Підняти Postgres локально (ПРОПУСТІТЬ, якщо DATABASE_URL вказує на Neon)
 docker compose up -d
 
 # 2. Налаштувати оточення
@@ -25,7 +25,7 @@ cp .env.example .env
 
 # 3. Встановити залежності та створити таблиці
 npm install
-npx prisma migrate dev
+npm run db:deploy
 
 # 4. Запустити
 npm run dev

@@ -4,8 +4,9 @@ RUN apk add --no-cache openssl
 
 WORKDIR /app
 
+# postinstall (prisma generate) вимкнено: схема ще не скопійована.
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 COPY prisma ./prisma
 RUN npx prisma generate
