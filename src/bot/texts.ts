@@ -281,6 +281,7 @@ export const texts = {
     phone: string | null;
     comment?: string;
     clientName?: string;
+    holdReason?: string;
     files: ReadonlyArray<{ fileName: string; pages: number }>;
     createdAt: Date;
   }) =>
@@ -292,6 +293,7 @@ export const texts = {
     `Куди: ${escapeHtml(data.location)}\n` +
     (data.phone ? `Телефон: ${formatPhone(data.phone)}\n` : "") +
     (data.comment ? `Коментар: ${escapeHtml(data.comment)}\n` : "") +
+    (data.holdReason ? `⚠️ Причина паузи: ${escapeHtml(data.holdReason)}\n` : "") +
     `\nФайли:\n` +
     data.files
       .map((file, index) => `${index + 1}. ${escapeHtml(file.fileName)} — ${file.pages} стор.`)
@@ -312,6 +314,8 @@ export const texts = {
   orderHoldClient: (data: { code: string; reason: string }) =>
     `⚠️ Щодо замовлення <b>${escapeHtml(data.code)}</b>: ${escapeHtml(data.reason)}.\n` +
     `Працівник зв'яжеться з вами.`,
+  orderResumedClient: (code: string) =>
+    `🖨 Замовлення <b>${escapeHtml(code)}</b> знову в роботі.`,
 
   orderAlreadyTaken: `Це замовлення вже взяв інший працівник.`,
   orderActionNotAllowed: `Ця дія зараз недоступна.`,

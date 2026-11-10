@@ -38,11 +38,17 @@ function roleOf(user: { role: string }): Role {
   return isRole(user.role) ? user.role : "client";
 }
 
-function paymentLine(order: { paymentMethod: string; paymentStatus: string }): string {
+function paymentLine(order: {
+  paymentMethod: string;
+  paymentStatus: string;
+  status?: string;
+}): string {
   const method = paymentMethodLabel(order.paymentMethod);
-  return order.paymentStatus === "paid"
-    ? method
-    : `${method} · ${paymentStatusLabel(order.paymentStatus)}`;
+  const payment =
+    order.paymentStatus === "paid"
+      ? method
+      : `${method} · ${paymentStatusLabel(order.paymentStatus)}`;
+  return order.status === "ON_HOLD" ? `${payment} · ⚠️ пауза` : payment;
 }
 
 function parseOrderId(raw: string | undefined): bigint | null {
@@ -230,6 +236,18 @@ export async function handleQueueCallback(
       return;
     }
 
+    if (action === "resume") {
+      await transitionOrder({
+        orderId,
+        to: "IN_PROGRESS",
+        actorId: user.id,
+        requireAcceptedBy: roleOf(user) === "admin" ? undefined : user.id,
+      });
+      await notifyClient(ctx, view.client.telegramId, texts.orderResumedClient(view.code));
+      await renderOrder(ctx, orderId);
+      return;
+    }
+
     if (action === "hold") {
       await editOrReply(ctx, texts.holdReasons, holdReasonsKeyboard(orderId.toString()));
       return;
@@ -374,6 +392,7 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
       phone: staff ? order.phoneSnapshot : null,
       comment: order.comment ?? undefined,
       clientName: staff ? displayName(order.client) : undefined,
+      holdReason: order.holdReason ?? undefined,
       files: order.files,
       createdAt: order.createdAt,
     }),

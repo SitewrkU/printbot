@@ -160,6 +160,10 @@ export function orderDetailKeyboard(params: {
     keyboard.text("⚠️ Проблема", `q:hold:${id}`).row();
   }
 
+  if (params.isStaff && params.status === "ON_HOLD" && params.isMine) {
+    keyboard.text("▶️ Продовжити", `q:resume:${id}`).row();
+  }
+
   if (
     params.isStaff &&
     params.status === "READY" &&

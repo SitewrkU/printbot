@@ -37,7 +37,10 @@ export async function listFreeQueue(limit = 8): Promise<Order[]> {
 
 export async function listWorkerActive(workerId: bigint): Promise<Order[]> {
   return prisma.order.findMany({
-    where: { status: "IN_PROGRESS", acceptedById: workerId },
+    where: {
+      status: { in: ["IN_PROGRESS", "ON_HOLD"] },
+      acceptedById: workerId,
+    },
     orderBy: { acceptedAt: "asc" },
     take: 8,
   });
