@@ -461,6 +461,9 @@ export async function handleHelp(ctx: BotContext): Promise<void> {
 
 /** Допомагає дізнатися ID групового чату для STAFF_CHAT_ID. */
 export async function handleChatId(ctx: BotContext): Promise<void> {
+  if (!ctx.chat) {
+    return;
+  }
   await ctx.reply(`ID цього чату: <code>${ctx.chat.id}</code>`, {
     parse_mode: "HTML",
   });
