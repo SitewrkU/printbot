@@ -1,5 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { logger } from "../infra/logger.js";
+import { normalizeBlockReason } from "../domain/blocking.js";
 import { formatUah, parsePriceInput } from "../domain/pricing.js";
 import {
   OrderActionError,
@@ -18,10 +19,11 @@ import {
   paymentStatusLabel,
   statusLabel,
 } from "../domain/statuses.js";
-import { displayName } from "../domain/users.js";
+import { blockUser, displayName, unblockUser } from "../domain/users.js";
 import { currentUser, type BotContext } from "./context.js";
 import {
   backToMenuKeyboard,
+  blockReasonKeyboard,
   cashConfirmKeyboard,
   clientOrdersKeyboard,
   clientPriceKeyboard,
@@ -302,6 +304,34 @@ export async function handleQueueCallback(
       return;
     }
 
+    if (action === "block") {
+      if (view.client.role !== "client") {
+        await replyHtml(ctx, texts.blockStaffImpossible);
+        return;
+      }
+      setBlockState(ctx, orderId);
+      await editOrReply(
+        ctx,
+        texts.blockReasonPrompt(displayName(view.client), view.code),
+        blockReasonKeyboard(orderId.toString()),
+      );
+      return;
+    }
+
+    if (action === "unblock") {
+      if (view.client.role !== "client") {
+        await replyHtml(ctx, texts.blockStaffImpossible);
+        return;
+      }
+      const updated = await unblockUser(view.clientId);
+      await ctx.reply(texts.unblockedDone(displayName(updated)), {
+        parse_mode: "HTML",
+      });
+      await notifyClient(ctx, updated.telegramId, texts.unblockedClient);
+      await renderOrder(ctx, orderId);
+      return;
+    }
+
     if (action === "resume") {
       await transitionOrder({
         orderId,
@@ -542,6 +572,65 @@ export async function handleStaffPriceText(
   }
 }
 
+export async function handleBlockReasonText(
+  ctx: BotContext,
+  state: ConversationState,
+): Promise<void> {
+  const user = currentUser(ctx);
+  const key = stateKey(ctx);
+
+  if (!isStaff(roleOf(user))) {
+    clearState(key);
+    await replyHtml(ctx, texts.adminOnly, backToMenuKeyboard());
+    return;
+  }
+
+  const orderId = parseOrderId(state.staffAction?.orderId);
+  if (!orderId) {
+    clearState(key);
+    await editOrReply(ctx, texts.orderNotFound, backToMenuKeyboard());
+    return;
+  }
+
+  const reason = normalizeBlockReason(ctx.message?.text ?? "");
+  if (!reason) {
+    await ctx.reply(texts.blockReasonInvalid, { parse_mode: "HTML" });
+    return;
+  }
+
+  const view = await getOrderView(orderId);
+  if (!view) {
+    clearState(key);
+    await editOrReply(ctx, texts.orderNotFound, backToMenuKeyboard());
+    return;
+  }
+
+  if (view.client.role !== "client") {
+    clearState(key);
+    await replyHtml(ctx, texts.blockStaffImpossible, backToMenuKeyboard());
+    return;
+  }
+
+  try {
+    const blocked = await blockUser(view.clientId, reason);
+    clearState(key);
+    await ctx.reply(
+      texts.blockedDone({
+        name: displayName(blocked),
+        code: view.code,
+        reason,
+      }),
+      { parse_mode: "HTML" },
+    );
+    await notifyClient(ctx, blocked.telegramId, texts.blockedClient(reason));
+    await renderOrder(ctx, orderId);
+  } catch (error) {
+    logger.error({ err: error, orderId: orderId.toString() }, "block failed");
+    clearState(key);
+    await replyHtml(ctx, texts.orderActionNotAllowed);
+  }
+}
+
 function stateKey(ctx: BotContext): string {
   return String(ctx.from?.id ?? "unknown");
 }
@@ -549,6 +638,14 @@ function stateKey(ctx: BotContext): string {
 function setPriceState(ctx: BotContext, orderId: bigint): void {
   setState(stateKey(ctx), {
     step: "staff_price",
+    draft: {},
+    staffAction: { orderId: orderId.toString() },
+  });
+}
+
+function setBlockState(ctx: BotContext, orderId: bigint): void {
+  setState(stateKey(ctx), {
+    step: "staff_block",
     draft: {},
     staffAction: { orderId: orderId.toString() },
   });
@@ -574,6 +671,8 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
     paymentStatus: order.paymentStatus,
     paymentMethod: order.paymentMethod,
     priceConfirmed: order.priceConfirmed,
+    clientRole: order.client.role,
+    clientBlocked: order.client.isBlocked,
   });
 
   await editOrReply(

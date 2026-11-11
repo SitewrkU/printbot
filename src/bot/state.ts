@@ -35,7 +35,8 @@ export type Step =
   | "order_confirm"
   | "order_comment"
   | "staff_price"
-  | "staff_announce";
+  | "staff_announce"
+  | "staff_block";
 
 export type StaffAction = {
   orderId: string;

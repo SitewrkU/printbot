@@ -23,6 +23,12 @@ const envSchema = z.object({
   WORK_HOURS: z.string().min(1).default("щодня 18:00–22:00"),
   SUPPORT_CONTACT: z.string().default(""),
 
+  DEVELOPER_NAME: z.string().min(1).default("SitewrkU"),
+  DEVELOPER_URL: z
+    .string()
+    .default("https://sitewrku.github.io/portfolio-remastered/"),
+  DEVELOPER_TIP_CARD: z.string().default("4874070026568905"),
+
   PRICE_PER_PAGE_KOP: z.coerce.number().int().positive().default(300),
   MAX_FILES_PER_ORDER: z.coerce.number().int().positive().default(15),
   MAX_PAGES_PER_ORDER: z.coerce.number().int().positive().default(100),

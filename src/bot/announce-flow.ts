@@ -86,16 +86,27 @@ export async function handleAnnouncementText(
 }
 
 export async function toggleOrdering(ctx: BotContext): Promise<void> {
+  const enabled = await isOrderingEnabled();
+  await setOrdering(ctx, !enabled);
+}
+
+export async function setOrdering(
+  ctx: BotContext,
+  enabled: boolean,
+): Promise<void> {
   const user = currentUser(ctx);
   if (!isStaff(roleOf(user))) {
     await editOrReply(ctx, texts.adminOnly, backToMenuKeyboard());
     return;
   }
 
-  const enabled = await isOrderingEnabled();
-  await setOrderingEnabled(!enabled);
+  const current = await isOrderingEnabled();
+  if (current !== enabled) {
+    await setOrderingEnabled(enabled);
+  }
+
   await ctx.reply(
-    enabled ? texts.orderingDisabledMessage : texts.orderingEnabledMessage,
+    enabled ? texts.orderingEnabledMessage : texts.orderingDisabledMessage,
     { parse_mode: "HTML" },
   );
   await showStaffMenu(ctx);
@@ -115,6 +126,10 @@ export async function handleStaffCallback(
   }
   if (data === "staff:toggle") {
     await toggleOrdering(ctx);
+    return;
+  }
+  if (data === "staff:ordering:on" || data === "staff:ordering:off") {
+    await setOrdering(ctx, data === "staff:ordering:on");
     return;
   }
   await replyHtml(ctx, texts.orderActionNotAllowed);

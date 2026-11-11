@@ -157,6 +157,8 @@ export function orderDetailKeyboard(params: {
   paymentStatus: string;
   paymentMethod: string;
   priceConfirmed: boolean;
+  clientRole: string;
+  clientBlocked: boolean;
 }): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const id = params.orderId;
@@ -180,6 +182,14 @@ export function orderDetailKeyboard(params: {
   if (params.isStaff && canReview) {
     keyboard.text("💰 Змінити ціну", `q:price:${id}`).row();
     keyboard.text("❌ Відхилити", `q:reject:${id}`).row();
+  }
+
+  if (params.isStaff && params.clientRole === "client" && canReview) {
+    if (params.clientBlocked) {
+      keyboard.text("✅ Розблокувати клієнта", `q:unblock:${id}`).row();
+    } else {
+      keyboard.text("🚫 Заблокувати клієнта", `q:block:${id}`).row();
+    }
   }
 
   if (
@@ -248,12 +258,34 @@ export function staffMenuKeyboard(orderingEnabled: boolean): InlineKeyboard {
   return new InlineKeyboard()
     .text("📢 Надіслати оголошення", "staff:announce")
     .row()
+    .text("🚫 Заблоковані клієнти", "staff:blocked")
+    .row()
     .text(
       orderingEnabled ? "⏸ Вимкнути замовлення" : "▶️ Увімкнути замовлення",
-      "staff:toggle",
+      orderingEnabled ? "staff:ordering:off" : "staff:ordering:on",
     )
     .row()
     .text("◀️ Меню", "menu:main");
+}
+
+export function blockReasonKeyboard(orderId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("◀️ Скасувати", `q:view:${orderId}`)
+    .row()
+    .text("🏠 У меню", "menu:main");
+}
+
+export function blockedUsersKeyboard(users: User[]): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const user of users) {
+    keyboard
+      .text(`✅ ${truncate(displayName(user), 28)}`, `staff:ublock:${user.id}`)
+      .row();
+  }
+
+  keyboard.text("◀️ Службове меню", "staff:home").text("🏠 Меню", "menu:main");
+  return keyboard;
 }
 
 export function holdReasonsKeyboard(orderId: string): InlineKeyboard {

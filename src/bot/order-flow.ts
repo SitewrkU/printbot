@@ -52,6 +52,15 @@ const submitting = new Set<number>();
 export async function startNewOrder(ctx: BotContext): Promise<void> {
   const user = currentUser(ctx);
 
+  if (user.isBlocked) {
+    await editOrReply(
+      ctx,
+      texts.blockedNotice(user.blockedReason),
+      backToMenuKeyboard(),
+    );
+    return;
+  }
+
   if (!(await isOrderingEnabled())) {
     await editOrReply(
       ctx,
@@ -83,6 +92,21 @@ export async function startNewOrder(ctx: BotContext): Promise<void> {
 export async function handleOrderDocument(ctx: BotContext): Promise<void> {
   const document = ctx.message?.document;
   if (!document) {
+    return;
+  }
+
+  const user = currentUser(ctx);
+  if (user.isBlocked) {
+    await replyHtml(ctx, texts.blockedNotice(user.blockedReason), backToMenuKeyboard());
+    return;
+  }
+
+  if (!(await isOrderingEnabled())) {
+    await replyHtml(
+      ctx,
+      texts.orderingDisabled(await getAnnouncement()),
+      backToMenuKeyboard(),
+    );
     return;
   }
 
@@ -385,6 +409,16 @@ async function submitOrder(
 ): Promise<void> {
   const user = currentUser(ctx);
   const room = normalizeRoom(user.location ?? "");
+
+  if (user.isBlocked) {
+    clearState(conversationKey(ctx));
+    await replyHtml(
+      ctx,
+      texts.blockedNotice(user.blockedReason),
+      backToMenuKeyboard(),
+    );
+    return;
+  }
 
   if (!user.phone || !room) {
     clearState(conversationKey(ctx));

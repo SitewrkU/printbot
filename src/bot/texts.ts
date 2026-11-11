@@ -23,6 +23,20 @@ const limits = () =>
 
 const price = () => `${formatUah(config.PRICE_PER_PAGE_KOP)} за сторінку A4`;
 
+const developerLink = () =>
+  config.DEVELOPER_URL
+    ? `<a href="${escapeHtml(config.DEVELOPER_URL)}">${escapeHtml(config.DEVELOPER_NAME)}</a>`
+    : escapeHtml(config.DEVELOPER_NAME);
+
+const developerLine = () => `🤖 Розробник: ${developerLink()}`;
+
+const tipCardBlock = () =>
+  config.DEVELOPER_TIP_CARD
+    ? `\n\n☕ <i>Не обов'язково:</i> хочете подякувати розробнику за бота — ` +
+      `можна закинути на каву:\n<code>${escapeHtml(config.DEVELOPER_TIP_CARD)}</code>\n` +
+      `Це не оплата замовлення.`
+    : "";
+
 export const texts = {
   welcome: (name?: string) =>
     `👋 <b>Вітаємо${name ? `, ${escapeHtml(name)}` : ""}!</b>\n\n` +
@@ -30,7 +44,8 @@ export const texts = {
     `Надсилаєте файл → бачите ціну → забираєте роздруківку.\n\n` +
     `<b>${price()}</b>, кольоровий друк.\n` +
     `Видача: <b>${escapeHtml(config.PICKUP_POINT)}</b>.\n` +
-    `Графік: ${escapeHtml(config.WORK_HOURS)}`,
+    `Графік: ${escapeHtml(config.WORK_HOURS)}\n\n` +
+    developerLine(),
 
   askName:
     `Як вас звати? Напишіть <b>справжнє ім'я та прізвище</b> одним повідомленням — ` +
@@ -87,8 +102,9 @@ export const texts = {
     `<b>Ліміти:</b> ${limits()}\n` +
     `<b>Графік:</b> ${escapeHtml(config.WORK_HOURS)}\n` +
     (config.SUPPORT_CONTACT
-      ? `<b>Підтримка:</b> ${escapeHtml(config.SUPPORT_CONTACT)}`
-      : ""),
+      ? `<b>Підтримка:</b> ${escapeHtml(config.SUPPORT_CONTACT)}\n`
+      : "") +
+    `\n${developerLine()}`,
 
   ordersEmpty: `У вас ще немає замовлень. Натисніть «🖨 Нове замовлення», щоб створити перше.`,
 
@@ -240,7 +256,8 @@ export const texts = {
         `Призначення: ${escapeHtml(data.code)}\n\n` +
         `Після переказу натисніть «✅ Я оплатив» у «📄 Мої замовлення». ` +
         `Квитанцію можна надіслати сюди за бажанням.`
-      : `Реквізити картки надішле адміністратор. Після переказу натисніть «✅ Я оплатив» у «📄 Мої замовлення».`),
+      : `Реквізити картки надішле адміністратор. Після переказу натисніть «✅ Я оплатив» у «📄 Мої замовлення».`) +
+    tipCardBlock(),
 
   orderRateLimited: (limit: number) =>
     `Забагато замовлень за годину (ліміт — ${limit}). Спробуйте пізніше.`,
@@ -422,6 +439,50 @@ export const texts = {
     (announcement ? `${escapeHtml(announcement)}\n\n` : "") +
     `Спробуйте пізніше.`,
   orderingDisabledShort: `⏸ Прийом замовлень тимчасово призупинено.`,
+
+  // ------------------------------------------------------ блокування клієнтів
+
+  blockedNotice: (reason: string | null) =>
+    `🚫 <b>Нові замовлення заблоковано</b>\n\n` +
+    (reason ? `Причина: ${escapeHtml(reason)}\n\n` : "") +
+    `Ви не можете створювати нові замовлення. ` +
+    (config.SUPPORT_CONTACT
+      ? `Зверніться до адміністратора: ${escapeHtml(config.SUPPORT_CONTACT)}.`
+      : `Зверніться до адміністратора друкарні.`),
+  blockedShort: `🚫 Нові замовлення заблоковано.`,
+  blockReasonPrompt: (name: string, code: string) =>
+    `<b>🚫 Блокування клієнта</b>\n\n` +
+    `Клієнт: <b>${escapeHtml(name)}</b>\n` +
+    `Замовлення: ${escapeHtml(code)}\n\n` +
+    `Напишіть причину блокування (3–200 символів).\n` +
+    `Наприклад: «спамить однаковими замовленнями» або «не забирає готові замовлення».`,
+  blockReasonInvalid: `Причина має містити 3–200 символів. Спробуйте ще раз.`,
+  blockedDone: (data: { name: string; code: string; reason: string }) =>
+    `🚫 <b>${escapeHtml(data.name)}</b> заблокований(а).\n` +
+    `Причина: ${escapeHtml(data.reason)}\n` +
+    `Замовлення ${escapeHtml(data.code)} лишається в роботі — клієнт зможе його забрати.`,
+  blockedClient: (reason: string) =>
+    `🚫 <b>Вам обмежено створення нових замовлень.</b>\n\n` +
+    `Причина: ${escapeHtml(reason)}\n\n` +
+    `Якщо це помилка — зверніться до адміністратора друкарні.`,
+  blockStaffImpossible: `Не можна блокувати працівника або адміністратора.`,
+  unblockedDone: (name: string) =>
+    `✅ <b>${escapeHtml(name)}</b> розблокований(а) — може знову створювати замовлення.`,
+  unblockedClient: `✅ Вам знову дозволено створювати замовлення. Дякуємо!`,
+  blockedListEmpty: `Заблокованих користувачів немає.`,
+  blockedListHeader: (count: number) =>
+    `<b>🚫 Заблоковані клієнти</b>\n\nУсього: <b>${count}</b>. ` +
+    `Натисніть на ім'я, щоб розблокувати.`,
+  blockedUserLine: (data: {
+    name: string;
+    room: string | null;
+    reason: string | null;
+    blockedAt: Date | null;
+  }) =>
+    `🚫 <b>${escapeHtml(data.name)}</b>` +
+    (data.room ? ` · кімн. ${escapeHtml(data.room)}` : "") +
+    (data.reason ? `\nПричина: ${escapeHtml(data.reason)}` : "") +
+    (data.blockedAt ? `\nЗаблоковано: ${formatDateTime(data.blockedAt)}` : ""),
 
   cancelDone: `Дію скасовано.`,
   fallback: `Скористайтеся меню нижче або натисніть /start.`,

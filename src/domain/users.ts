@@ -66,6 +66,30 @@ export async function listWorkers(): Promise<User[]> {
   });
 }
 
+export async function blockUser(
+  userId: bigint,
+  reason: string,
+): Promise<User> {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { isBlocked: true, blockedReason: reason, blockedAt: new Date() },
+  });
+}
+
+export async function unblockUser(userId: bigint): Promise<User> {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { isBlocked: false, blockedReason: null, blockedAt: null },
+  });
+}
+
+export async function listBlockedUsers(): Promise<User[]> {
+  return prisma.user.findMany({
+    where: { isBlocked: true },
+    orderBy: { blockedAt: "desc" },
+  });
+}
+
 export function displayName(user: User): string {
   return user.fullName?.trim() || `ID ${user.telegramId.toString()}`;
 }

@@ -10,6 +10,7 @@ import {
   handleAnnouncementText,
   handleStaffCallback,
 } from "./announce-flow.js";
+import { handleBlockedCallback } from "./block-flow.js";
 import { currentUser, type BotContext } from "./context.js";
 import {
   adminKeyboard,
@@ -24,6 +25,7 @@ import {
 } from "./keyboards.js";
 import { handleOrderCallback, handleOrderText, startNewOrder } from "./order-flow.js";
 import {
+  handleBlockReasonText,
   handleClientOrderCallback,
   handleQueueCallback,
   handleStaffPriceText,
@@ -64,10 +66,11 @@ async function showMainMenu(ctx: BotContext): Promise<void> {
   const suffix = enabled
     ? ""
     : `\n\n${texts.orderingDisabledShort}${announcement ? `\n${escapeHtml(announcement)}` : ""}`;
+  const blocked = user.isBlocked ? `\n\n${texts.blockedShort}` : "";
 
   await editOrReply(
     ctx,
-    `${texts.mainMenu(user.fullName ?? undefined)}${suffix}`,
+    `${texts.mainMenu(user.fullName ?? undefined)}${suffix}${blocked}`,
     mainMenuKeyboard(roleOf(user)),
   );
 }
@@ -389,6 +392,10 @@ export async function handleText(ctx: BotContext): Promise<void> {
       await handleAnnouncementText(ctx, text);
       return;
 
+    case "staff_block":
+      await handleBlockReasonText(ctx, state);
+      return;
+
     default:
       return;
   }
@@ -509,6 +516,10 @@ export async function handleCallback(ctx: BotContext): Promise<void> {
     }
     if (data.startsWith("o:")) {
       await handleClientOrderCallback(ctx, data);
+      return;
+    }
+    if (data === "staff:blocked" || data.startsWith("staff:ublock:")) {
+      await handleBlockedCallback(ctx, data);
       return;
     }
     if (data.startsWith("staff:")) {

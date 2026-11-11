@@ -18,6 +18,9 @@ model User {
   phone      String?
   location   String? // корпус + кімната / група
   isActive   Boolean  @default(true)
+  isBlocked  Boolean  @default(false)
+  blockedReason String?
+  blockedAt  DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

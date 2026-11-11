@@ -4,14 +4,21 @@ import { prisma } from "../infra/db.js";
 import { logger } from "../infra/logger.js";
 
 /**
- * Нове замовлення / подія для працівників: група (якщо задана) + особисті
- * повідомлення всім активним працівникам і адмінам.
+ * Повідомлення працівникам: надсилається В ГРУПУ (якщо задано STAFF_CHAT_ID).
+ * В особисті повідомлення не дублюється, щоб не забивати приватні чати працівників.
+ * Якщо групу не вказано — резервно надсилається в ДМ усім активним працівникам.
  */
 export async function notifyStaff(ctx: BotContext, text: string): Promise<void> {
-  const targets = new Set<string>();
-
   if (config.STAFF_CHAT_ID) {
-    targets.add(config.STAFF_CHAT_ID);
+    try {
+      await ctx.api.sendMessage(config.STAFF_CHAT_ID, text, { parse_mode: "HTML" });
+    } catch (error) {
+      logger.warn(
+        { err: error, chatId: config.STAFF_CHAT_ID },
+        "staff group notification failed",
+      );
+    }
+    return;
   }
 
   try {
@@ -22,18 +29,20 @@ export async function notifyStaff(ctx: BotContext, text: string): Promise<void> 
       },
       select: { telegramId: true },
     });
+
     for (const person of staff) {
-      targets.add(person.telegramId.toString());
+      try {
+        await ctx.api.sendMessage(person.telegramId.toString(), text, {
+          parse_mode: "HTML",
+        });
+      } catch (error) {
+        logger.warn(
+          { err: error, telegramId: person.telegramId.toString() },
+          "staff DM notification failed",
+        );
+      }
     }
   } catch (error) {
-    logger.warn({ err: error }, "failed to load staff recipients");
-  }
-
-  for (const chatId of targets) {
-    try {
-      await ctx.api.sendMessage(chatId, text, { parse_mode: "HTML" });
-    } catch (error) {
-      logger.warn({ err: error, chatId }, "staff notification failed");
-    }
+    logger.warn({ err: error }, "failed to load fallback staff recipients");
   }
 }
