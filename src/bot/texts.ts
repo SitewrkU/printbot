@@ -2,10 +2,18 @@ import { config } from "../app-config.js";
 import { formatUah } from "../domain/pricing.js";
 import { formatPhone } from "../domain/phone.js";
 import { roleLabel, type Role } from "../domain/roles.js";
+import { statusEmoji } from "../domain/statuses.js";
 
 export function formatDateTime(date: Date): string {
   return new Intl.DateTimeFormat("uk-UA", {
     dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Europe/Kyiv",
+  }).format(date);
+}
+
+export function formatTime(date: Date): string {
+  return new Intl.DateTimeFormat("uk-UA", {
     timeStyle: "short",
     timeZone: "Europe/Kyiv",
   }).format(date);
@@ -40,11 +48,14 @@ const tipCardBlock = () =>
 export const texts = {
   welcome: (name?: string) =>
     `👋 <b>Вітаємо${name ? `, ${escapeHtml(name)}` : ""}!</b>\n\n` +
-    `Це бот друкарні «${escapeHtml(config.PRINT_NAME)}».\n` +
-    `Надсилаєте файл → бачите ціну → забираєте роздруківку.\n\n` +
-    `<b>${price()}</b>, кольоровий друк.\n` +
-    `Видача: <b>${escapeHtml(config.PICKUP_POINT)}</b>.\n` +
-    `Графік: ${escapeHtml(config.WORK_HOURS)}\n\n` +
+    `Це бот друкарні «${escapeHtml(config.PRINT_NAME)}».\n\n` +
+    `🖨 <b>Як це працює</b>\n` +
+    `1️⃣ Надсилаєте PDF або DOCX\n` +
+    `2️⃣ Бот рахує сторінки й показує ціну\n` +
+    `3️⃣ Забираєте роздруківку\n\n` +
+    `💰 <b>${price()}</b>, кольоровий друк.\n` +
+    `📍 Видача: <b>${escapeHtml(config.PICKUP_POINT)}</b>.\n` +
+    `🕒 Графік: ${escapeHtml(config.WORK_HOURS)}\n\n` +
     developerLine(),
 
   askName:
@@ -75,8 +86,8 @@ export const texts = {
   profileSaved: `✅ Дані збережено — наступного разу вводити не потрібно.`,
 
   mainMenu: (name?: string) =>
-    `${name ? `Привіт, ${escapeHtml(name)}! 👋` : "Головне меню"}\n\n` +
-    `Що робимо?`,
+    `${name ? `Привіт, <b>${escapeHtml(name)}</b>! 👋` : "<b>Головне меню</b>"}\n\n` +
+    `Оберіть дію нижче.`,
 
   profile: (data: {
     fullName?: string | null;
@@ -91,22 +102,34 @@ export const texts = {
     `Роль: ${roleLabel(data.role)}`,
 
   help:
-    `<b>Як це працює</b>\n\n` +
-    `1. Оформлюєте замовлення й надсилаєте файли PDF або DOCX.\n` +
-    `2. Бот рахує сторінки й показує ціну: ${price()}.\n` +
-    `3. Обираєте оплату: переказ на картку або готівкою при отриманні.\n` +
-    `4. Працівник друкує, бот пише, коли можна забирати.\n\n` +
-    `Видача: <b>${escapeHtml(config.PICKUP_POINT)}</b>.\n` +
-    `Якщо у файлі дуже багато кольору або чорної заливки, працівник може ` +
+    `<b>ℹ️ Допомога</b>\n\n` +
+    `<b>🖨 Як зробити замовлення</b>\n` +
+    `1. Натисніть «🖨 Нове замовлення».\n` +
+    `2. Надішліть PDF або DOCX як <b>документ</b> (скріпка → «Файл»).\n` +
+    `3. Оберіть кількість копій і спосіб оплати.\n` +
+    `4. Підтвердіть замовлення — воно з'явиться в черзі працівника.\n\n` +
+    `<b>💰 Ціна</b>\n` +
+    `${price()} × кількість сторінок × копії.\n` +
+    `Якщо у файлі багато кольору або чорної заливки, працівник може ` +
     `перерахувати ціну — ви отримаєте нову суму й підтвердите її.\n\n` +
-    `<b>Ліміти:</b> ${limits()}\n` +
-    `<b>Графік:</b> ${escapeHtml(config.WORK_HOURS)}\n` +
+    `<b>💳 Оплата</b>\n` +
+    `• готівкою при отриманні;\n` +
+    `• переказом на картку — після переказу натисніть «✅ Я оплатив» ` +
+    `у «📄 Мої замовлення».\n\n` +
+    `<b>📦 Видача</b>\n` +
+    `📍 ${escapeHtml(config.PICKUP_POINT)}\n` +
+    `🕒 ${escapeHtml(config.WORK_HOURS)}\n` +
+    `Коли замовлення готове, бот надішле повідомлення.\n\n` +
+    `<b>📏 Ліміти</b>\n` +
+    `${limits()}\n` +
     (config.SUPPORT_CONTACT
-      ? `<b>Підтримка:</b> ${escapeHtml(config.SUPPORT_CONTACT)}\n`
+      ? `\n<b>🆘 Підтримка:</b> ${escapeHtml(config.SUPPORT_CONTACT)}\n`
       : "") +
     `\n${developerLine()}`,
 
   ordersEmpty: `У вас ще немає замовлень. Натисніть «🖨 Нове замовлення», щоб створити перше.`,
+  ordersHeader: (count: number) =>
+    `<b>📄 Мої замовлення</b>\n\nУсього: <b>${count}</b>. Оберіть замовлення нижче, щоб побачити деталі.`,
 
   adminHome: `<b>⚙️ Адмінка</b>\n\nКерування працівниками та службові дії.`,
   adminWorkers: (count: number) =>
@@ -133,8 +156,8 @@ export const texts = {
     pages: number;
     copies: number;
   }) =>
-    `<b>${escapeHtml(order.code)}</b> — ${order.status}\n` +
-    `${order.pages} стор. × ${order.copies} = ${order.amount}`,
+    `${statusEmoji(order.status)} <b>${escapeHtml(order.code)}</b> · ${order.status}\n` +
+    `📄 ${order.pages} стор. × ${order.copies} · 💰 ${order.amount}`,
 
   // --------------------------------------------------------------- замовлення
 
@@ -146,7 +169,7 @@ export const texts = {
     `<b>Ціна:</b> ${price()}.\n` +
     `Якщо у файлі дуже багато кольору або чорної заливки, працівник може ` +
     `перерахувати ціну — ви отримаєте нову суму й підтвердите її.\n\n` +
-    `Після кожного файлу покажу кількість сторінок. Коли все надіслано — натисніть «✅ Завершити вибір».`,
+    `Після кожного файлу покажу кількість сторінок. Коли все надіслано — натисніть «✅ Далі — копії».`,
 
   orderFileAccepted: (data: {
     fileName: string;
@@ -179,11 +202,11 @@ export const texts = {
     `вона потрібна, щоб знайти вас у гуртожитку.`,
 
   orderLimitFiles: (max: number) =>
-    `У замовленні вже ${max} файлів — більше не можна. Натисніть «✅ Завершити вибір».`,
+    `У замовленні вже ${max} файлів — більше не можна. Натисніть «✅ Далі — копії».`,
 
   orderLimitPages: (max: number) =>
     `Перевищено ліміт сторінок: максимум ${max} у замовленні. ` +
-    `Натисніть «✅ Завершити вибір» або приберіть файл.`,
+    `Натисніть «✅ Далі — копії» або приберіть файл.`,
 
   orderAskCopies: (totalPages: number) =>
     `Скільки копій надрукувати?\n\n` +
@@ -203,7 +226,8 @@ export const texts = {
     phone: string | null;
     comment?: string;
   }) =>
-    `<b>Перевірте замовлення</b>\n\n` +
+    `<b>🧾 Перевірте замовлення</b>\n\n` +
+    `<b>📎 Файли</b>\n` +
     data.files
       .map(
         (file, index) =>
@@ -212,12 +236,14 @@ export const texts = {
           }`,
       )
       .join("\n") +
-    `\n\nСторінок: <b>${data.totalPages}</b> × ${data.copies} коп.\n` +
+    `\n\n<b>📊 Розрахунок</b>\n` +
+    `Сторінок: <b>${data.totalPages}</b> × ${data.copies} коп.\n` +
     `До сплати: <b>${data.amount}</b>\n\n` +
+    `<b>📍 Отримання</b>\n` +
     `Кімната: ${escapeHtml(data.room)}\n` +
     `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
     `Телефон: ${data.phone ? formatPhone(data.phone) : "—"}` +
-    (data.comment ? `\nКоментар: ${escapeHtml(data.comment)}` : "") +
+    (data.comment ? `\n💬 Коментар: ${escapeHtml(data.comment)}` : "") +
     (data.files.some((file) => !file.pagesExact)
       ? `\n\n⚠️ Кількість сторінок DOCX орієнтовна: працівник уточнить перед друком.`
       : ""),
@@ -233,11 +259,11 @@ export const texts = {
     room: string;
   }) =>
     `✅ <b>Замовлення ${escapeHtml(data.code)} створено</b>\n\n` +
-    `${data.pages} стор. × ${data.copies} = <b>${data.amount}</b>\n` +
-    `Оплата: готівкою при отриманні.\n` +
-    `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
-    `Ваша кімната: ${escapeHtml(data.room)}\n\n` +
-    `Ми напишемо, коли буде готово.`,
+    `<b>📄 ${data.pages} стор. × ${data.copies} коп. = ${data.amount}</b>\n` +
+    `💵 Оплата: готівкою при отриманні\n` +
+    `🚪 Ваша кімната: ${escapeHtml(data.room)}\n` +
+    `📍 Забрати: ${escapeHtml(config.PICKUP_POINT)}\n\n` +
+    `⏳ Ми напишемо, коли замовлення буде готове.`,
 
   orderCreatedCard: (data: {
     code: string;
@@ -247,16 +273,23 @@ export const texts = {
     room: string;
   }) =>
     `✅ <b>Замовлення ${escapeHtml(data.code)} створено</b>\n\n` +
-    `${data.pages} стор. × ${data.copies} = <b>${data.amount}</b>\n` +
-    `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
-    `Ваша кімната: ${escapeHtml(data.room)}\n\n` +
+    `<b>📄 ${data.pages} стор. × ${data.copies} коп. = ${data.amount}</b>\n` +
+    `🚪 Ваша кімната: ${escapeHtml(data.room)}\n` +
+    `📍 Забрати: ${escapeHtml(config.PICKUP_POINT)}\n\n` +
     (config.CARD_NUMBER
-      ? `Перекажіть суму на картку:\n<code>${escapeHtml(config.CARD_NUMBER)}</code>\n` +
-        (config.CARD_RECIPIENT ? `Отримувач: ${escapeHtml(config.CARD_RECIPIENT)}\n` : "") +
-        `Призначення: ${escapeHtml(data.code)}\n\n` +
-        `Після переказу натисніть «✅ Я оплатив» у «📄 Мої замовлення». ` +
+      ? `<b>💳 Оплата карткою</b>\n` +
+        `Сума: <b>${data.amount}</b>\n` +
+        `Картка: <code>${escapeHtml(config.CARD_NUMBER)}</code>\n` +
+        (config.CARD_RECIPIENT
+          ? `Отримувач: ${escapeHtml(config.CARD_RECIPIENT)}\n`
+          : "") +
+        `Призначення: <code>${escapeHtml(data.code)}</code>\n\n` +
+        `1️⃣ Перекажіть суму\n` +
+        `2️⃣ Натисніть «✅ Я оплатив» у «📄 Мої замовлення»\n` +
+        `3️⃣ Працівник підтвердить оплату\n\n` +
         `Квитанцію можна надіслати сюди за бажанням.`
-      : `Реквізити картки надішле адміністратор. Після переказу натисніть «✅ Я оплатив» у «📄 Мої замовлення».`) +
+      : `Реквізити картки надішле адміністратор.\n` +
+        `Після переказу натисніть «✅ Я оплатив» у «📄 Мої замовлення».`) +
     tipCardBlock(),
 
   orderRateLimited: (limit: number) =>
@@ -275,10 +308,12 @@ export const texts = {
     payment: string;
     comment?: string;
   }) =>
-    `🆕 <b>${escapeHtml(data.code)}</b> · ${data.pages} стор. × ${data.copies} · ` +
-    `<b>${data.amount}</b> · ${escapeHtml(data.payment)}\n` +
-    `Кімната: ${escapeHtml(data.room)}` +
-    (data.comment ? `\nКоментар: ${escapeHtml(data.comment)}` : ""),
+    `🆕 <b>Нове замовлення ${escapeHtml(data.code)}</b>\n\n` +
+    `📄 ${data.pages} стор. × ${data.copies} коп. · 💰 <b>${data.amount}</b>\n` +
+    `💳 Оплата: ${escapeHtml(data.payment)}\n` +
+    `🚪 Кімната: ${escapeHtml(data.room)}` +
+    (data.comment ? `\n💬 Коментар: ${escapeHtml(data.comment)}` : "") +
+    `\n\n👉 Відкрийте «📋 Черга», щоб взяти замовлення.`,
 
   orderNotFound: `Замовлення не знайдено.`,
 
@@ -288,12 +323,18 @@ export const texts = {
 
   // ------------------------------------------------------------------ черга
 
-  queueHeader: (freeCount: number, mineCount: number) =>
-    `<b>📋 Черга</b>\n\n` +
-    `Вільних: <b>${freeCount}</b> · у мене в роботі: <b>${mineCount}</b>`,
+  queueHeader: (
+    freeCount: number,
+    mineCount: number,
+    updatedAt: Date = new Date(),
+  ) =>
+    `<b>📋 Черга замовлень</b>\n\n` +
+    `🆓 Вільних: <b>${freeCount}</b> · 🖨 У мене: <b>${mineCount}</b>\n` +
+    `🕒 Оновлено: ${formatTime(updatedAt)}`,
 
   queueItem: (data: {
     code: string;
+    status: string;
     pages: number;
     copies: number;
     amount: string;
@@ -301,12 +342,15 @@ export const texts = {
     payment: string;
     waiting: string;
   }) =>
-    `<b>${escapeHtml(data.code)}</b> · ${data.pages} стор. × ${data.copies} = ${data.amount}\n` +
-    `кімн. ${escapeHtml(data.room)} · ${escapeHtml(data.payment)} · чекає ${data.waiting}`,
+    `${statusEmoji(data.status)} <b>${escapeHtml(data.code)}</b> · ${data.pages} стор. × ${data.copies}\n` +
+    `💰 ${data.amount} · ${escapeHtml(data.payment)}\n` +
+    `🚪 Кімната ${escapeHtml(data.room)} · ⏱ ${data.waiting}`,
 
   orderDetail: (data: {
     code: string;
     status: string;
+    statusIcon: string;
+    paymentMethod: string;
     paymentStatus: string;
     pages: number;
     pagesExact: boolean;
@@ -317,26 +361,37 @@ export const texts = {
     phone: string | null;
     comment?: string;
     clientName?: string;
+    clientBlocked?: boolean;
     holdReason?: string;
     files: ReadonlyArray<{ fileName: string; pages: number }>;
     createdAt: Date;
+    hint?: string;
   }) =>
-    `<b>${escapeHtml(data.code)}</b> · ${data.status}\n` +
-    (data.clientName ? `Клієнт: ${escapeHtml(data.clientName)}\n` : "") +
-    `Оплата: ${data.paymentStatus}\n\n` +
+    `${data.statusIcon} <b>${escapeHtml(data.code)}</b> · ${data.status}\n` +
+    `━━━━━━━━━━━━━━\n` +
+    (data.clientName ? `👤 Клієнт: ${escapeHtml(data.clientName)}\n` : "") +
+    (data.clientBlocked ? `🚫 Клієнт заблокований\n` : "") +
+    `🚪 Кімната: ${escapeHtml(data.room)}\n` +
+    `📍 Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
+    (data.phone ? `📞 Телефон: ${formatPhone(data.phone)}\n` : "") +
+    (data.comment ? `💬 Коментар: ${escapeHtml(data.comment)}\n` : "") +
+    `\n<b>📄 Замовлення</b>\n` +
     `Сторінок: ${data.pages}${data.pagesExact ? "" : " (≈)"} × ${data.copies} коп.\n` +
-    `Сума: <b>${data.amount}</b>` +
-    (data.priceConfirmed ? "\n" : " ⚠️ (очікує підтвердження клієнтом)\n") +
-    `Кімната: ${escapeHtml(data.room)}\n` +
-    `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
-    (data.phone ? `Телефон: ${formatPhone(data.phone)}\n` : "") +
-    (data.comment ? `Коментар: ${escapeHtml(data.comment)}\n` : "") +
-    (data.holdReason ? `⚠️ Причина паузи: ${escapeHtml(data.holdReason)}\n` : "") +
-    `\nФайли:\n` +
+    `💰 Сума: <b>${data.amount}</b>` +
+    (data.priceConfirmed
+      ? "\n"
+      : ` ⚠️ <i>очікує підтвердження клієнтом</i>\n`) +
+    `💳 Оплата: ${data.paymentMethod} · ${data.paymentStatus}\n` +
+    (data.holdReason ? `⚠️ Пауза: ${escapeHtml(data.holdReason)}\n` : "") +
+    `\n<b>📎 Файли</b>\n` +
     data.files
-      .map((file, index) => `${index + 1}. ${escapeHtml(file.fileName)} — ${file.pages} стор.`)
+      .map(
+        (file, index) =>
+          `${index + 1}. ${escapeHtml(file.fileName)} — ${file.pages} стор.`,
+      )
       .join("\n") +
-    `\n\nСтворено: ${formatDateTime(data.createdAt)}`,
+    `\n\n🕒 Створено: ${formatDateTime(data.createdAt)}` +
+    (data.hint ? `\n\n💡 <i>${data.hint}</i>` : ""),
 
   orderTakenClient: (code: string) =>
     `🖨 Ваше замовлення <b>${escapeHtml(code)}</b> друкується.`,
@@ -371,8 +426,6 @@ export const texts = {
 
   queueHowTo:
     `Вільних замовлень немає.\nНові з'являться тут автоматично — загляньте пізніше.`,
-
-  ordersWithActions: `Оберіть замовлення, щоб побачити деталі.`,
 
   // ------------------------------------------------- ціна, оплата, оголошення
 
@@ -413,14 +466,18 @@ export const texts = {
 
   paymentRequestedClient: `✅ Позначили, що ви оплатили. Працівник перевірить і підтвердить.`,
   paymentRequestedStaff: (data: { code: string; amount: string }) =>
-    `💳 Клієнт позначив оплату <b>${escapeHtml(data.code)}</b> — <b>${data.amount}</b>. ` +
-    `Перевірте надходження й підтвердіть у картці замовлення.`,
+    `💳 <b>Клієнт позначив оплату</b>\n\n` +
+    `Замовлення: <b>${escapeHtml(data.code)}</b>\n` +
+    `Сума: <b>${data.amount}</b>\n\n` +
+    `Перевірте надходження й натисніть «💳 Оплату підтверджено» у картці замовлення.`,
   paymentConfirmedClient: (code: string) =>
     `✅ Оплату замовлення <b>${escapeHtml(code)}</b> підтверджено.`,
 
-  staffMenu: `<b>📢 Службове меню</b>\n\nОголошення та прийом замовлень.`,
+  staffMenu: `<b>🛠 Службове меню</b>\n\nКерування чергою, оголошеннями та клієнтами.`,
   orderingStatus: (enabled: boolean) =>
-    enabled ? `Прийом замовлень: <b>увімкнено</b> ✅` : `Прийом замовлень: <b>вимкнено</b> ⏸`,
+    enabled
+      ? `📥 Прийом замовлень: <b>увімкнено</b> ✅`
+      : `⏸ Прийом замовлень: <b>вимкнено</b>`,
   announcementPrompt:
     `Напишіть текст оголошення для всіх користувачів (до 2000 символів).\n\n` +
     `Наприклад: «Сьогодні не друкуємо, немає паперу. Вибачте!»`,

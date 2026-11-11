@@ -35,6 +35,20 @@ export function statusLabel(status: string): string {
   return isOrderStatus(status) ? ORDER_STATUS_LABELS[status] : status;
 }
 
+const STATUS_EMOJI: Record<OrderStatus, string> = {
+  QUEUED: "⏳",
+  IN_PROGRESS: "🖨",
+  READY: "✅",
+  CLOSED: "📦",
+  ON_HOLD: "⚠️",
+  CANCELLED: "❌",
+  EXPIRED: "⌛",
+};
+
+export function statusEmoji(status: string): string {
+  return isOrderStatus(status) ? STATUS_EMOJI[status] : "•";
+}
+
 /** Дозволені переходи. Усе, чого немає в мапі, — заборонено. */
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   QUEUED: ["IN_PROGRESS", "CANCELLED"],

@@ -35,6 +35,19 @@ export async function listFreeQueue(limit = 8): Promise<Order[]> {
   });
 }
 
+export async function countFreeQueue(): Promise<number> {
+  return prisma.order.count({ where: { status: "QUEUED" } });
+}
+
+export async function countWorkerActive(workerId: bigint): Promise<number> {
+  return prisma.order.count({
+    where: {
+      acceptedById: workerId,
+      status: { in: ["IN_PROGRESS", "ON_HOLD"] },
+    },
+  });
+}
+
 export async function listWorkerActive(workerId: bigint): Promise<Order[]> {
   return prisma.order.findMany({
     where: {

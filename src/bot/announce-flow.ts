@@ -1,5 +1,6 @@
 import { prisma } from "../infra/db.js";
 import { logger } from "../infra/logger.js";
+import { countFreeQueue, countWorkerActive } from "../domain/queue.js";
 import { isRole, isStaff, type Role } from "../domain/roles.js";
 import {
   getAnnouncement,
@@ -30,15 +31,20 @@ export async function showStaffMenu(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const [enabled, announcement] = await Promise.all([
+  const [enabled, announcement, free, mine] = await Promise.all([
     isOrderingEnabled(),
     getAnnouncement(),
+    countFreeQueue(),
+    countWorkerActive(currentUser(ctx).id),
   ]);
 
   await editOrReply(
     ctx,
-    `${texts.staffMenu}\n\n${texts.orderingStatus(enabled)}` +
-      (announcement ? `\n\n<b>Останнє оголошення:</b>\n${escapeAnnouncement(announcement)}` : ""),
+    `${texts.staffMenu}\n\n${texts.orderingStatus(enabled)}\n` +
+      `🆓 Вільних: <b>${free}</b> · 🖨 У мене: <b>${mine}</b>` +
+      (announcement
+        ? `\n\n<b>📢 Останнє оголошення:</b>\n${escapeAnnouncement(announcement)}`
+        : ""),
     staffMenuKeyboard(enabled),
   );
 }

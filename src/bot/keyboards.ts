@@ -2,6 +2,7 @@ import { InlineKeyboard, Keyboard } from "grammy";
 import { config } from "../app-config.js";
 import { displayName } from "../domain/users.js";
 import { isStaff, type Role } from "../domain/roles.js";
+import { statusEmoji } from "../domain/statuses.js";
 import type { User } from "@prisma/client";
 
 export function contactKeyboard(): Keyboard {
@@ -15,8 +16,8 @@ export function mainMenuKeyboard(role: Role): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (isStaff(role)) {
-    keyboard.text("📋 Черга", "menu:queue").row();
-    keyboard.text("📢 Оголошення", "staff:home").row();
+    keyboard.text("📋 Черга замовлень", "menu:queue").row();
+    keyboard.text("🛠 Службове меню", "staff:home").row();
   }
 
   keyboard
@@ -84,14 +85,14 @@ export function confirmRemoveWorkerKeyboard(telegramId: string): InlineKeyboard 
 }
 
 export function backToMenuKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text("◀️ У меню", "menu:main");
+  return new InlineKeyboard().text("🏠 Меню", "menu:main");
 }
 
 export function roomRequiredKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🚪 Вказати кімнату", "profile:location")
     .row()
-    .text("◀️ У меню", "menu:main");
+    .text("🏠 Меню", "menu:main");
 }
 
 export function editProfileKeyboard(): InlineKeyboard {
@@ -102,7 +103,7 @@ export function orderFilesKeyboard(fileCount: number): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (fileCount > 0) {
-    keyboard.text("✅ Завершити вибір", "order:finish").row();
+    keyboard.text("✅ Далі — копії", "order:finish").row();
     keyboard.text("🗑 Прибрати останній", "order:remove").row();
   }
 
@@ -133,7 +134,7 @@ export function orderConfirmKeyboard(hasComment: boolean): InlineKeyboard {
 
   keyboard.text("💵 Готівка при отриманні", "order:pay:cash").row();
   keyboard
-    .text(hasComment ? "✏️ Змінити коментар" : "✏️ Додати коментар", "order:comment")
+    .text(hasComment ? "💬 Змінити коментар" : "💬 Додати коментар", "order:comment")
     .row()
     .text("🔢 Змінити копії", "order:copies_back")
     .row()
@@ -172,7 +173,7 @@ export function orderDetailKeyboard(params: {
     if (params.priceConfirmed) {
       keyboard.text("✅ Готово", `q:ready:${id}`).row();
     }
-    keyboard.text("⚠️ Проблема", `q:hold:${id}`).row();
+    keyboard.text("⏸ Пауза", `q:hold:${id}`).row();
   }
 
   if (params.isStaff && params.status === "ON_HOLD" && params.isMine) {
@@ -198,7 +199,7 @@ export function orderDetailKeyboard(params: {
     params.paymentMethod === "cash" &&
     params.paymentStatus !== "paid"
   ) {
-    keyboard.text("💵 Гроші отримано", `q:cash:${id}`).row();
+    keyboard.text("💵 Готівку отримано", `q:cash:${id}`).row();
   }
 
   if (
@@ -206,7 +207,7 @@ export function orderDetailKeyboard(params: {
     params.paymentStatus === "pending_review" &&
     (canReview || params.status === "READY")
   ) {
-    keyboard.text("💰 Оплату підтверджено", `q:paid:${id}`).row();
+    keyboard.text("💳 Оплату підтверджено", `q:paid:${id}`).row();
   }
 
   if (!params.isStaff && !params.priceConfirmed && canReview) {
@@ -232,7 +233,7 @@ export function orderDetailKeyboard(params: {
   }
 
   if (params.isStaff) {
-    keyboard.text("📎 Надіслати файли", `q:files:${id}`);
+    keyboard.text("📎 Файли", `q:files:${id}`);
   }
 
   keyboard.text("◀️ Назад", params.isStaff ? "menu:queue" : "menu:orders");
@@ -256,6 +257,8 @@ export function clientPriceKeyboard(orderId: string): InlineKeyboard {
 
 export function staffMenuKeyboard(orderingEnabled: boolean): InlineKeyboard {
   return new InlineKeyboard()
+    .text("📋 Черга замовлень", "menu:queue")
+    .row()
     .text("📢 Надіслати оголошення", "staff:announce")
     .row()
     .text("🚫 Заблоковані клієнти", "staff:blocked")
@@ -265,14 +268,14 @@ export function staffMenuKeyboard(orderingEnabled: boolean): InlineKeyboard {
       orderingEnabled ? "staff:ordering:off" : "staff:ordering:on",
     )
     .row()
-    .text("◀️ Меню", "menu:main");
+    .text("🏠 Меню", "menu:main");
 }
 
 export function blockReasonKeyboard(orderId: string): InlineKeyboard {
   return new InlineKeyboard()
     .text("◀️ Скасувати", `q:view:${orderId}`)
     .row()
-    .text("🏠 У меню", "menu:main");
+    .text("🏠 Меню", "menu:main");
 }
 
 export function blockedUsersKeyboard(users: User[]): InlineKeyboard {
@@ -305,10 +308,12 @@ export function clientOrdersKeyboard(
   const keyboard = new InlineKeyboard();
 
   for (const order of orders) {
-    keyboard.text(order.code, `o:view:${order.id}`).row();
+    keyboard
+      .text(`${statusEmoji(order.status)} ${order.code}`, `o:view:${order.id}`)
+      .row();
   }
 
-  keyboard.text("◀️ Меню", "menu:main");
+  keyboard.text("🏠 Меню", "menu:main");
   return keyboard;
 }
 
@@ -316,7 +321,7 @@ export function orderCreatedKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("📄 Мої замовлення", "menu:orders")
     .row()
-    .text("◀️ Меню", "menu:main");
+    .text("🏠 Меню", "menu:main");
 }
 
 function truncate(value: string, max: number): string {

@@ -6,17 +6,21 @@ import {
   OrderActionError,
   changeOrderPrice,
   confirmOrderPrice,
+  countFreeQueue,
+  countWorkerActive,
   getOrderView,
   listClientOrders,
   listFreeQueue,
   listWorkerActive,
   markPaymentPaid,
   transitionOrder,
+  type OrderView,
 } from "../domain/queue.js";
 import { isRole, isStaff, type Role } from "../domain/roles.js";
 import {
   paymentMethodLabel,
   paymentStatusLabel,
+  statusEmoji,
   statusLabel,
 } from "../domain/statuses.js";
 import { blockUser, displayName, unblockUser } from "../domain/users.js";
@@ -75,20 +79,23 @@ export async function showQueue(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const [free, mine] = await Promise.all([
-    listFreeQueue(),
+  const [free, mine, freeCount, mineCount] = await Promise.all([
+    listFreeQueue(20),
     listWorkerActive(user.id),
+    countFreeQueue(),
+    countWorkerActive(user.id),
   ]);
 
   const sections: string[] = [];
 
   if (free.length > 0) {
     sections.push(
-      `<b>Вільні</b>\n\n` +
+      `<b>🆓 Вільні замовлення</b>\n\n` +
         free
           .map((order) =>
             texts.queueItem({
               code: order.code,
+              status: order.status,
               pages: order.pagesTotal,
               copies: order.copies,
               amount: formatUah(order.amountKop),
@@ -103,12 +110,13 @@ export async function showQueue(ctx: BotContext): Promise<void> {
 
   if (mine.length > 0) {
     sections.push(
-      `<b>Мої в роботі</b>\n\n` +
+      `<b>🖨 Мої в роботі</b>\n\n` +
         mine
           .map(
             (order) =>
               texts.queueItem({
                 code: order.code,
+                status: order.status,
                 pages: order.pagesTotal,
                 copies: order.copies,
                 amount: formatUah(order.amountKop),
@@ -127,16 +135,20 @@ export async function showQueue(ctx: BotContext): Promise<void> {
 
   const keyboard = new InlineKeyboard();
   for (const order of free) {
-    keyboard.text(`▶️ ${order.code}`, `q:view:${order.id.toString()}`).row();
+    keyboard
+      .text(`${statusEmoji(order.status)} ${order.code}`, `q:view:${order.id.toString()}`)
+      .row();
   }
   for (const order of mine) {
-    keyboard.text(`🖨 ${order.code}`, `q:view:${order.id.toString()}`).row();
+    keyboard
+      .text(`🖨 ${order.code}`, `q:view:${order.id.toString()}`)
+      .row();
   }
-  keyboard.text("🔄 Оновити", "menu:queue").text("◀️ Меню", "menu:main");
+  keyboard.text("🔄 Оновити", "menu:queue").text("🏠 Меню", "menu:main");
 
   await editOrReply(
     ctx,
-    `${texts.queueHeader(free.length, mine.length)}\n\n${sections.join("\n\n")}`,
+    `${texts.queueHeader(freeCount, mineCount)}\n\n${sections.join("\n\n")}`,
     keyboard,
   );
 }
@@ -164,7 +176,7 @@ export async function showClientOrders(ctx: BotContext): Promise<void> {
 
   await editOrReply(
     ctx,
-    `<b>Мої замовлення</b>\n\n${body}\n\n${texts.ordersWithActions}`,
+    `${texts.ordersHeader(orders.length)}\n\n${body}`,
     clientOrdersKeyboard(
       orders.map((order) => ({
         id: order.id.toString(),
@@ -680,6 +692,8 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
     texts.orderDetail({
       code: order.code,
       status: statusLabel(order.status),
+      statusIcon: statusEmoji(order.status),
+      paymentMethod: paymentMethodLabel(order.paymentMethod),
       paymentStatus: paymentStatusLabel(order.paymentStatus),
       pages: order.pagesTotal,
       pagesExact: order.pagesExact,
@@ -690,12 +704,58 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
       phone: staff ? order.phoneSnapshot : null,
       comment: order.comment ?? undefined,
       clientName: staff ? displayName(order.client) : undefined,
+      clientBlocked: staff ? order.client.isBlocked : undefined,
       holdReason: order.holdReason ?? undefined,
       files: order.files,
       createdAt: order.createdAt,
+      hint: orderHint(order, staff),
     }),
     keyboard,
   );
+}
+
+function orderHint(order: OrderView, staff: boolean): string | undefined {
+  if (staff) {
+    if (order.status === "QUEUED") {
+      return "Натисніть «✅ Взяти в роботу», щоб почати друк.";
+    }
+    if (order.status === "IN_PROGRESS") {
+      return order.priceConfirmed
+        ? "Коли надрукуєте — натисніть «✅ Готово»."
+        : "Ціну змінено — дочекайтеся підтвердження клієнтом.";
+    }
+    if (order.status === "ON_HOLD") {
+      return "Натисніть «▶️ Продовжити», коли проблема зникне.";
+    }
+    if (order.status === "READY") {
+      if (order.paymentMethod === "cash" && order.paymentStatus !== "paid") {
+        return "Віддайте замовлення та натисніть «💵 Готівку отримано».";
+      }
+      if (order.paymentStatus === "pending_review") {
+        return "Перевірте оплату та натисніть «💳 Оплату підтверджено».";
+      }
+      return "Замовлення готове — чекайте клієнта.";
+    }
+    return order.status === "CLOSED" ? "Замовлення видано." : undefined;
+  }
+
+  if (order.status === "QUEUED") {
+    return order.priceConfirmed
+      ? "Замовлення в черзі. Ми напишемо, коли візьмемо його в роботу."
+      : "Підтвердіть нову ціну кнопками нижче.";
+  }
+  if (order.status === "IN_PROGRESS") {
+    return order.priceConfirmed
+      ? "Друкуємо. Ми напишемо, коли замовлення буде готове."
+      : "Працівник перерахував ціну — підтвердіть її кнопками нижче.";
+  }
+  if (order.status === "READY") {
+    return "Заберіть замовлення і натисніть «✅ Забрав».";
+  }
+  if (order.status === "ON_HOLD") {
+    return "Замовлення на паузі — працівник зв'яжеться з вами.";
+  }
+  return order.status === "CLOSED" ? "Дякуємо! Замовлення видано." : undefined;
 }
 
 async function sendOrderFiles(ctx: BotContext, orderId: bigint): Promise<void> {
