@@ -1,5 +1,6 @@
 import { InlineKeyboard, Keyboard } from "grammy";
 import { config } from "../app-config.js";
+import { READY_FILES } from "../domain/ready-files.js";
 import { displayName } from "../domain/users.js";
 import { isStaff, type Role } from "../domain/roles.js";
 import { statusEmoji } from "../domain/statuses.js";
@@ -105,6 +106,12 @@ export function orderFilesKeyboard(fileCount: number): InlineKeyboard {
   if (fileCount > 0) {
     keyboard.text("✅ Далі — копії", "order:finish").row();
     keyboard.text("🗑 Прибрати останній", "order:remove").row();
+  }
+
+  for (const file of READY_FILES) {
+    keyboard
+      .text(`📐 ${file.label} · ${file.pages} стор.`, `order:ready:${file.id}`)
+      .row();
   }
 
   keyboard.text("◀️ Скасувати", "menu:main");

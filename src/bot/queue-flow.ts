@@ -1,7 +1,8 @@
-import { InlineKeyboard } from "grammy";
+import { InlineKeyboard, InputFile } from "grammy";
 import { logger } from "../infra/logger.js";
 import { normalizeBlockReason } from "../domain/blocking.js";
 import { formatUah, parsePriceInput } from "../domain/pricing.js";
+import { findReadyFileByTag } from "../domain/ready-files.js";
 import {
   OrderActionError,
   changeOrderPrice,
@@ -767,9 +768,14 @@ async function sendOrderFiles(ctx: BotContext, orderId: bigint): Promise<void> {
   let sent = 0;
   for (const file of order.files) {
     try {
-      await ctx.api.sendDocument(ctx.chat.id, file.telegramFileId, {
-        caption: file.fileName,
-      });
+      const ready = findReadyFileByTag(file.telegramFileId);
+      await ctx.api.sendDocument(
+        ctx.chat.id,
+        ready
+          ? new InputFile(ready.path, ready.fileName)
+          : file.telegramFileId,
+        { caption: file.fileName },
+      );
       sent += 1;
     } catch (error) {
       logger.warn({ err: error, orderId: orderId.toString() }, "file resend failed");

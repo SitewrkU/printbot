@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { InputFile } from "grammy";
 import { config } from "../app-config.js";
 import { FileParseError, parseDocument } from "../domain/file-parsing.js";
 import {
@@ -8,6 +9,7 @@ import {
   totalPages,
 } from "../domain/orders.js";
 import { formatUah } from "../domain/pricing.js";
+import { findReadyFileById, readyFileTag } from "../domain/ready-files.js";
 import { isValidRoom, normalizeRoom } from "../domain/rooms.js";
 import { getAnnouncement, isOrderingEnabled } from "../domain/settings.js";
 import { paymentMethodLabel, type PaymentMethod } from "../domain/statuses.js";
@@ -300,6 +302,11 @@ export async function handleOrderCallback(
     return;
   }
 
+  if (data.startsWith("order:ready:")) {
+    await addReadyFile(ctx, state, data.slice("order:ready:".length));
+    return;
+  }
+
   if (data === "order:finish") {
     if (state.order.files.length === 0) {
       await replyHtml(ctx, texts.orderFilesNeed, orderFilesKeyboard(0));
@@ -363,6 +370,95 @@ export async function handleOrderCallback(
     await submitOrder(ctx, state, method);
     return;
   }
+}
+
+async function addReadyFile(
+  ctx: BotContext,
+  state: ActiveOrderState,
+  readyId: string,
+): Promise<void> {
+  const key = conversationKey(ctx);
+
+  if (state.step !== "order_files") {
+    await replyHtml(ctx, texts.orderActionNotAllowed);
+    return;
+  }
+
+  const ready = findReadyFileById(readyId);
+  if (!ready) {
+    await replyHtml(ctx, texts.orderActionNotAllowed);
+    return;
+  }
+
+  if (state.order.files.length >= config.MAX_FILES_PER_ORDER) {
+    await replyHtml(
+      ctx,
+      texts.orderLimitFiles(config.MAX_FILES_PER_ORDER),
+      orderFilesKeyboard(state.order.files.length),
+    );
+    return;
+  }
+
+  const tag = readyFileTag(ready.id);
+  if (state.order.files.some((file) => file.sha256 === ready.sha256)) {
+    await replyHtml(
+      ctx,
+      texts.orderReadyFileDuplicate,
+      orderFilesKeyboard(state.order.files.length),
+    );
+    return;
+  }
+
+  const pagesTotal = totalPages(state.order.files) + ready.pages;
+  if (pagesTotal > config.MAX_PAGES_PER_ORDER) {
+    await replyHtml(
+      ctx,
+      texts.orderLimitPages(config.MAX_PAGES_PER_ORDER),
+      orderFilesKeyboard(state.order.files.length),
+    );
+    return;
+  }
+
+  const file: OrderFileDraft = {
+    fileId: tag,
+    fileName: ready.label,
+    mime: ready.mime,
+    sizeBytes: ready.sizeBytes,
+    pages: ready.pages,
+    pagesExact: true,
+    sha256: ready.sha256,
+  };
+
+  // Показуємо клієнту, яку саме рамку він обрав. Якщо Telegram поверне file_id,
+  // зберігаємо його — працівник отримає файл без повторного читання з диска.
+  try {
+    const preview = await ctx.replyWithDocument(
+      new InputFile(ready.path, ready.fileName),
+      { caption: `📐 ${ready.label} · ${ready.pages} стор.` },
+    );
+    if (preview.document?.file_id) {
+      file.fileId = preview.document.file_id;
+    }
+  } catch (error) {
+    logger.warn({ err: error, readyFile: ready.id }, "ready file preview failed");
+  }
+
+  const updated: ActiveOrderState = {
+    ...state,
+    order: { ...state.order, files: [...state.order.files, file] },
+  };
+  setState(key, updated);
+
+  await replyHtml(
+    ctx,
+    texts.orderReadyFileAdded({
+      label: ready.label,
+      pages: ready.pages,
+      filesCount: updated.order.files.length,
+      pagesTotal: totalPages(updated.order.files),
+    }),
+    orderFilesKeyboard(updated.order.files.length),
+  );
 }
 
 async function showCopies(
