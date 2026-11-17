@@ -1,5 +1,6 @@
 import { InlineKeyboard, Keyboard } from "grammy";
 import { config } from "../app-config.js";
+import { formatUah } from "../domain/pricing.js";
 import { READY_FILES } from "../domain/ready-files.js";
 import { displayName } from "../domain/users.js";
 import { isStaff, type Role } from "../domain/roles.js";
@@ -56,6 +57,8 @@ export function adminKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("👥 Працівники", "admin:workers")
     .row()
+    .text("🎭 Пранк-замовлення", "admin:prank")
+    .row()
     .text("◀️ Назад", "menu:main");
 }
 
@@ -83,6 +86,47 @@ export function confirmRemoveWorkerKeyboard(telegramId: string): InlineKeyboard 
   return new InlineKeyboard()
     .text("Так, зняти", `admin:remove_confirm:${telegramId}`)
     .text("Скасувати", "admin:workers");
+}
+
+export function prankClientsKeyboard(clients: User[]): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const client of clients) {
+    const room = client.location ? ` · ${client.location}` : "";
+    keyboard
+      .text(
+        `${truncate(displayName(client), 24)}${room}`,
+        `admin:prank:target:${client.id}`,
+      )
+      .row();
+  }
+
+  keyboard.text("◀️ Адмінка", "admin:home").text("🏠 Меню", "menu:main");
+  return keyboard;
+}
+
+export function prankOrdersKeyboard(
+  orders: ReadonlyArray<{
+    id: bigint;
+    code: string;
+    pagesTotal: number;
+    copies: number;
+    amountKop: number;
+  }>,
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const order of orders) {
+    keyboard
+      .text(
+        `🔁 ${order.code} · ${order.pagesTotal} стор. × ${order.copies} · ${formatUah(order.amountKop)}`,
+        `admin:prank:clone:${order.id}`,
+      )
+      .row();
+  }
+
+  keyboard.text("◀️ До клієнтів", "admin:prank").text("🏠 Меню", "menu:main");
+  return keyboard;
 }
 
 export function backToMenuKeyboard(): InlineKeyboard {

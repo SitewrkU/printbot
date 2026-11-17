@@ -793,6 +793,11 @@ async function notifyClient(
   text: string,
   keyboard?: InlineKeyboard,
 ): Promise<void> {
+  // Від'ємні ID — службові тіньові користувачі: реальна людина не має отримати нічого.
+  if (telegramId < 0n) {
+    return;
+  }
+
   try {
     await ctx.api.sendMessage(telegramId.toString(), text, {
       parse_mode: "HTML",

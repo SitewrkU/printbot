@@ -12,6 +12,7 @@ import {
 } from "./announce-flow.js";
 import { handleBlockedCallback } from "./block-flow.js";
 import { currentUser, type BotContext } from "./context.js";
+import { handlePrankCallback } from "./prank-flow.js";
 import {
   adminKeyboard,
   backToMenuKeyboard,
@@ -592,6 +593,10 @@ export async function handleCallback(ctx: BotContext): Promise<void> {
 
     if (data === "admin:home") {
       await showAdmin(ctx);
+      return;
+    }
+    if (data === "admin:prank" || data.startsWith("admin:prank:")) {
+      await handlePrankCallback(ctx, data);
       return;
     }
     if (data === "admin:workers") {

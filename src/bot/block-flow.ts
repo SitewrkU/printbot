@@ -67,15 +67,19 @@ export async function handleBlockedCallback(
     await ctx.reply(texts.unblockedDone(displayName(updated)), {
       parse_mode: "HTML",
     });
-    try {
-      await ctx.api.sendMessage(updated.telegramId.toString(), texts.unblockedClient, {
-        parse_mode: "HTML",
-      });
-    } catch (error) {
-      logger.warn(
-        { err: error, telegramId: updated.telegramId.toString() },
-        "unblock notification failed",
-      );
+    if (updated.telegramId > 0n) {
+      try {
+        await ctx.api.sendMessage(
+          updated.telegramId.toString(),
+          texts.unblockedClient,
+          { parse_mode: "HTML" },
+        );
+      } catch (error) {
+        logger.warn(
+          { err: error, telegramId: updated.telegramId.toString() },
+          "unblock notification failed",
+        );
+      }
     }
     await showBlockedUsers(ctx);
   } catch (error) {

@@ -6,6 +6,58 @@ export async function findUser(telegramId: bigint): Promise<User | null> {
   return prisma.user.findUnique({ where: { telegramId } });
 }
 
+export async function findUserById(id: bigint): Promise<User | null> {
+  return prisma.user.findUnique({ where: { id } });
+}
+
+/** Клієнти, які вже мали замовлення — для адмінського списку. */
+export async function listRecentClients(limit = 10): Promise<User[]> {
+  return prisma.user.findMany({
+    where: {
+      role: "client",
+      isActive: true,
+      orders: {
+        some: {
+          status: { in: ["QUEUED", "IN_PROGRESS", "READY", "CLOSED"] },
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+  });
+}
+
+/**
+ * Тіньовий користувач для службових перевірок: копія клієнта з від'ємним
+ * Telegram ID. Реальний клієнт не отримує жодних повідомлень і не бачить
+ * замовлення у своєму списку.
+ */
+export async function ensureShadowUser(target: User): Promise<User> {
+  const telegramId = -1_000_000_000_000_000n - target.id;
+
+  return prisma.user.upsert({
+    where: { telegramId },
+    create: {
+      telegramId,
+      role: "client",
+      fullName: target.fullName,
+      phone: target.phone,
+      location: target.location,
+      isActive: false,
+    },
+    update: {
+      role: "client",
+      fullName: target.fullName,
+      phone: target.phone,
+      location: target.location,
+      isActive: false,
+      isBlocked: false,
+      blockedReason: null,
+      blockedAt: null,
+    },
+  });
+}
+
 /**
  * Гарантує, що користувач існує, і синхронізує роль адміністратора з конфігом.
  * Роль працівника з БД не перетирається.
