@@ -3,9 +3,6 @@ import { prisma } from "../infra/db.js";
 /** Не частіше одного нагадування на клієнта за 30 хвилин. */
 export const REMINDER_COOLDOWN_MS = 30 * 60 * 1000;
 
-/** Нагадувати можна, якщо статус замовлення не змінювався 30 хвилин. */
-export const REMINDER_STALE_MS = 30 * 60 * 1000;
-
 export const REMINDABLE_STATUSES = ["QUEUED", "IN_PROGRESS", "ON_HOLD"] as const;
 export type RemindableStatus = (typeof REMINDABLE_STATUSES)[number];
 
@@ -22,17 +19,6 @@ export function remainingCooldownMs(
     return 0;
   }
   return Math.max(0, REMINDER_COOLDOWN_MS - (now.getTime() - lastReminderAt.getTime()));
-}
-
-/** Скільки ще замовлення має «провисіти» без зміни статусу (0 — можна). */
-export function remainingStaleMs(
-  lastStatusChangeAt: Date,
-  now: Date = new Date(),
-): number {
-  return Math.max(
-    0,
-    REMINDER_STALE_MS - (now.getTime() - lastStatusChangeAt.getTime()),
-  );
 }
 
 export function minutesLeft(ms: number): number {

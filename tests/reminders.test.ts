@@ -3,7 +3,6 @@ import {
   isRemindableStatus,
   minutesLeft,
   remainingCooldownMs,
-  remainingStaleMs,
 } from "../src/domain/reminders.js";
 
 const now = new Date("2026-11-25T12:00:00.000Z");
@@ -21,18 +20,6 @@ describe("reminder cooldown", () => {
   it("після 30 хвилин не блокує", () => {
     const last = new Date(now.getTime() - 30 * 60_000);
     expect(remainingCooldownMs(last, now)).toBe(0);
-  });
-});
-
-describe("reminder staleness", () => {
-  it("свіже замовлення ще не можна нагадувати", () => {
-    const changed = new Date(now.getTime() - 5 * 60_000);
-    expect(remainingStaleMs(changed, now)).toBe(25 * 60_000);
-  });
-
-  it("після 30 хвилин без змін — можна", () => {
-    const changed = new Date(now.getTime() - 31 * 60_000);
-    expect(remainingStaleMs(changed, now)).toBe(0);
   });
 });
 

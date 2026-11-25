@@ -205,6 +205,8 @@ export function orderDetailKeyboard(params: {
   code: string;
   isStaff: boolean;
   isMine: boolean;
+  /** Замовлення належить тому, хто зараз дивиться (клієнт або працівник). */
+  isOwner: boolean;
   status: string;
   paymentStatus: string;
   paymentMethod: string;
@@ -267,7 +269,7 @@ export function orderDetailKeyboard(params: {
   }
 
   if (
-    !params.isStaff &&
+    params.isOwner &&
     params.priceConfirmed &&
     ["QUEUED", "IN_PROGRESS", "ON_HOLD"].includes(params.status)
   ) {

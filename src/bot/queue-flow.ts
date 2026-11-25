@@ -10,7 +10,6 @@ import {
   minutesLeft,
   recordReminder,
   remainingCooldownMs,
-  remainingStaleMs,
 } from "../domain/reminders.js";
 import {
   OrderActionError,
@@ -470,11 +469,6 @@ export async function handleClientOrderCallback(
         }
 
         const lastChange = await lastStatusChangeAt(view.id, view.createdAt);
-        const stale = remainingStaleMs(lastChange, now);
-        if (stale > 0) {
-          await replyHtml(ctx, texts.remindTooEarly(minutesLeft(stale)));
-          return;
-        }
 
         const sent = await notifyStaff(
           ctx,
@@ -761,6 +755,7 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
     code: order.code,
     isStaff: staff,
     isMine,
+    isOwner: order.clientId === user.id,
     status: order.status,
     paymentStatus: order.paymentStatus,
     paymentMethod: order.paymentMethod,

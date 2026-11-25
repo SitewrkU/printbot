@@ -466,9 +466,6 @@ export const texts = {
   remindTooSoon: (minutes: number) =>
     `⏳ Нагадування вже надсилали нещодавно. ` +
     `Наступне можна буде через <b>${minutes} хв</b>.`,
-  remindTooEarly: (minutes: number) =>
-    `⏳ Замовлення нещодавно оновлювалося. ` +
-    `Якщо статус не зміниться, нагадати можна буде через <b>${minutes} хв</b>.`,
   remindNotActive: `Це замовлення вже не потребує нагадування.`,
   remindReady: `✅ Замовлення вже готове — можете забирати.`,
   remindConfirmPrice:
