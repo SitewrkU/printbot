@@ -471,6 +471,10 @@ export const texts = {
   remindConfirmPrice:
     `Спочатку підтвердіть нову ціну — після цього працівники зможуть почати друк.`,
   remindFailed: `Не вдалося надіслати нагадування. Спробуйте пізніше.`,
+  reminderNudge: (data: { code: string; waiting: string }) =>
+    `🔔 Замовлення <b>${escapeHtml(data.code)}</b> уже ${data.waiting} без змін.\n\n` +
+    `Якщо працівники вас не помітили — натисніть «🔔 Нагадати про замовлення», ` +
+    `і ми надішлемо їм нагадування.`,
 
   orderAlreadyTaken: `Це замовлення вже взяв інший працівник.`,
   orderActionNotAllowed: `Ця дія зараз недоступна.`,

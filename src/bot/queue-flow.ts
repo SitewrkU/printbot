@@ -34,9 +34,6 @@ import {
 } from "../domain/statuses.js";
 import { blockUser, displayName, unblockUser } from "../domain/users.js";
 import { currentUser, type BotContext } from "./context.js";
-
-/** Захист від подвійного натискання: поки нагадування надсилається, повтор ігноруємо. */
-const reminding = new Set<string>();
 import {
   backToMenuKeyboard,
   blockReasonKeyboard,
@@ -51,6 +48,9 @@ import { notifyStaff } from "./notify.js";
 import { clearState, setState, type ConversationState } from "./state.js";
 import { texts } from "./texts.js";
 import { editOrReply, replyHtml } from "./utils.js";
+
+/** Захист від подвійного натискання: поки нагадування надсилається, повтор ігноруємо. */
+const reminding = new Set<string>();
 
 const HOLD_REASONS: Record<string, string> = {
   broken: texts.holdReasonButton.broken,
@@ -194,6 +194,7 @@ export async function showClientOrders(ctx: BotContext): Promise<void> {
         id: order.id.toString(),
         code: order.code,
         status: order.status,
+        priceConfirmed: order.priceConfirmed,
       })),
     ),
   );

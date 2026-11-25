@@ -1,4 +1,5 @@
 import { createBot } from "./bot/index.js";
+import { sendReminderPrompts } from "./bot/reminder-nudge.js";
 import { config } from "./app-config.js";
 import { autoCloseReadyOrders, cleanupOldOrders } from "./domain/queue.js";
 import { prisma } from "./infra/db.js";
@@ -7,6 +8,7 @@ import { createServer } from "./http/server.js";
 
 const AUTO_CLOSE_INTERVAL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const REMINDER_PROMPT_INTERVAL_MS = 5 * 60 * 1000;
 
 async function main(): Promise<void> {
   const app = createServer();
@@ -46,6 +48,20 @@ async function main(): Promise<void> {
   const cleanupTimer = setInterval(cleanup, CLEANUP_INTERVAL_MS);
   setTimeout(cleanup, 2 * 60 * 1000);
 
+  const nudge = () => {
+    void sendReminderPrompts(bot.api)
+      .then((sent) => {
+        if (sent > 0) {
+          logger.info({ sent }, "reminder nudges sent");
+        }
+      })
+      .catch((error) =>
+        logger.error({ err: error }, "reminder nudge scan failed"),
+      );
+  };
+  const reminderTimer = setInterval(nudge, REMINDER_PROMPT_INTERVAL_MS);
+  setTimeout(nudge, 2 * 60 * 1000);
+
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) {
       return;
@@ -53,6 +69,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     clearInterval(autoCloseTimer);
     clearInterval(cleanupTimer);
+    clearInterval(reminderTimer);
     logger.info({ signal }, "shutting down");
 
     try {

@@ -364,14 +364,29 @@ export function holdReasonsKeyboard(orderId: string): InlineKeyboard {
 }
 
 export function clientOrdersKeyboard(
-  orders: ReadonlyArray<{ id: string; code: string; status: string }>,
+  orders: ReadonlyArray<{
+    id: string;
+    code: string;
+    status: string;
+    priceConfirmed: boolean;
+  }>,
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   for (const order of orders) {
-    keyboard
-      .text(`${statusEmoji(order.status)} ${order.code}`, `o:view:${order.id}`)
-      .row();
+    keyboard.text(
+      `${statusEmoji(order.status)} ${order.code}`,
+      `o:view:${order.id}`,
+    );
+
+    if (
+      order.priceConfirmed &&
+      ["QUEUED", "IN_PROGRESS", "ON_HOLD"].includes(order.status)
+    ) {
+      keyboard.text("🔔 Нагадати", `o:remind:${order.id}`);
+    }
+
+    keyboard.row();
   }
 
   keyboard.text("🏠 Меню", "menu:main");
