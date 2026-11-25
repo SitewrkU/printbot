@@ -36,7 +36,8 @@ export type Step =
   | "order_comment"
   | "staff_price"
   | "staff_announce"
-  | "staff_block";
+  | "staff_block"
+  | "prank_file";
 
 export type StaffAction = {
   orderId: string;
@@ -47,6 +48,8 @@ export type ConversationState = {
   draft: Draft;
   order?: OrderDraft;
   staffAction?: StaffAction;
+  /** Користувач БД, від імені якого створюється пранк-замовлення. */
+  prankTargetId?: string;
 };
 
 const TTL_MS = 30 * 60 * 1000;

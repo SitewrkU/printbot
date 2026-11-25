@@ -385,6 +385,10 @@ export async function handleText(ctx: BotContext): Promise<void> {
       await addWorkerFromText(ctx, text);
       return;
 
+    case "prank_file":
+      await replyHtml(ctx, texts.prankNeedFile, backToMenuKeyboard());
+      return;
+
     case "staff_price":
       await handleStaffPriceText(ctx, state);
       return;
@@ -462,6 +466,11 @@ export async function handleChatId(ctx: BotContext): Promise<void> {
 export async function handleReceipt(ctx: BotContext): Promise<void> {
   const message = ctx.message;
   if (!message) {
+    return;
+  }
+
+  if (getState(stateKey(ctx))?.step === "prank_file") {
+    await replyHtml(ctx, texts.prankNeedFile, backToMenuKeyboard());
     return;
   }
 

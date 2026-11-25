@@ -10,18 +10,10 @@ export async function findUserById(id: bigint): Promise<User | null> {
   return prisma.user.findUnique({ where: { id } });
 }
 
-/** Клієнти, які вже мали замовлення — для адмінського списку. */
-export async function listRecentClients(limit = 10): Promise<User[]> {
+/** Активні клієнти — цілі для адмінського пранк-замовлення. */
+export async function listActiveClients(limit = 12): Promise<User[]> {
   return prisma.user.findMany({
-    where: {
-      role: "client",
-      isActive: true,
-      orders: {
-        some: {
-          status: { in: ["QUEUED", "IN_PROGRESS", "READY", "CLOSED"] },
-        },
-      },
-    },
+    where: { role: "client", isActive: true, telegramId: { gt: 0n } },
     orderBy: { updatedAt: "desc" },
     take: limit,
   });

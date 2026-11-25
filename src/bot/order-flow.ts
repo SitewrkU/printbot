@@ -25,6 +25,7 @@ import {
   roomRequiredKeyboard,
 } from "./keyboards.js";
 import { notifyStaff } from "./notify.js";
+import { handlePrankDocument } from "./prank-flow.js";
 import {
   clearState,
   getState,
@@ -97,6 +98,15 @@ export async function handleOrderDocument(ctx: BotContext): Promise<void> {
     return;
   }
 
+  const key = conversationKey(ctx);
+  const state = getState(key);
+
+  // Адмін надсилає свій файл для пранк-замовлення.
+  if (state?.step === "prank_file") {
+    await handlePrankDocument(ctx);
+    return;
+  }
+
   const user = currentUser(ctx);
   if (user.isBlocked) {
     await replyHtml(ctx, texts.blockedNotice(user.blockedReason), backToMenuKeyboard());
@@ -111,9 +121,6 @@ export async function handleOrderDocument(ctx: BotContext): Promise<void> {
     );
     return;
   }
-
-  const key = conversationKey(ctx);
-  const state = getState(key);
 
   if (!hasOrder(state) || state.step !== "order_files") {
     await replyHtml(ctx, texts.orderSendFilesOnly);

@@ -113,6 +113,7 @@ export function prankOrdersKeyboard(
     copies: number;
     amountKop: number;
   }>,
+  userId: string,
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -125,6 +126,7 @@ export function prankOrdersKeyboard(
       .row();
   }
 
+  keyboard.text("📎 Свій файл", `admin:prank:file:${userId}`).row();
   keyboard.text("◀️ До клієнтів", "admin:prank").text("🏠 Меню", "menu:main");
   return keyboard;
 }
