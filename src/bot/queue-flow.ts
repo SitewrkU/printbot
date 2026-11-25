@@ -4,6 +4,15 @@ import { normalizeBlockReason } from "../domain/blocking.js";
 import { formatUah, parsePriceInput } from "../domain/pricing.js";
 import { findReadyFileByTag } from "../domain/ready-files.js";
 import {
+  isRemindableStatus,
+  lastClientReminderAt,
+  lastStatusChangeAt,
+  minutesLeft,
+  recordReminder,
+  remainingCooldownMs,
+  remainingStaleMs,
+} from "../domain/reminders.js";
+import {
   OrderActionError,
   changeOrderPrice,
   confirmOrderPrice,
@@ -26,6 +35,9 @@ import {
 } from "../domain/statuses.js";
 import { blockUser, displayName, unblockUser } from "../domain/users.js";
 import { currentUser, type BotContext } from "./context.js";
+
+/** Захист від подвійного натискання: поки нагадування надсилається, повтор ігноруємо. */
+const reminding = new Set<string>();
 import {
   backToMenuKeyboard,
   blockReasonKeyboard,
@@ -426,6 +438,75 @@ export async function handleClientOrderCallback(
   }
 
   try {
+    if (action === "remind") {
+      const inFlightKey = user.id.toString();
+      if (reminding.has(inFlightKey)) {
+        return;
+      }
+      reminding.add(inFlightKey);
+
+      try {
+        if (!isRemindableStatus(view.status)) {
+          await replyHtml(
+            ctx,
+            view.status === "READY" ? texts.remindReady : texts.remindNotActive,
+          );
+          return;
+        }
+
+        if (!view.priceConfirmed) {
+          await replyHtml(ctx, texts.remindConfirmPrice);
+          return;
+        }
+
+        const now = new Date();
+        const cooldown = remainingCooldownMs(
+          await lastClientReminderAt(user.id),
+          now,
+        );
+        if (cooldown > 0) {
+          await replyHtml(ctx, texts.remindTooSoon(minutesLeft(cooldown)));
+          return;
+        }
+
+        const lastChange = await lastStatusChangeAt(view.id, view.createdAt);
+        const stale = remainingStaleMs(lastChange, now);
+        if (stale > 0) {
+          await replyHtml(ctx, texts.remindTooEarly(minutesLeft(stale)));
+          return;
+        }
+
+        const sent = await notifyStaff(
+          ctx,
+          texts.reminderStaff({
+            code: view.code,
+            status: statusLabel(view.status),
+            clientName: displayName(view.client),
+            room: view.locationSnapshot,
+            pages: view.pagesTotal,
+            copies: view.copies,
+            amount: formatUah(view.amountKop),
+            waiting: formatWaiting(lastChange),
+          }),
+          new InlineKeyboard().text(
+            "📋 Відкрити замовлення",
+            `q:view:${view.id.toString()}`,
+          ),
+        );
+
+        if (!sent) {
+          await replyHtml(ctx, texts.remindFailed);
+          return;
+        }
+
+        await recordReminder(view.id, user.id, view.code);
+        await replyHtml(ctx, texts.remindSent);
+      } finally {
+        reminding.delete(inFlightKey);
+      }
+      return;
+    }
+
     if (action === "agree") {
       if (view.priceConfirmed) {
         await renderOrder(ctx, orderId);

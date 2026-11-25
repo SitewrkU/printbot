@@ -266,6 +266,14 @@ export function orderDetailKeyboard(params: {
     keyboard.text("❌ Відмовитись", `o:decline:${id}`).row();
   }
 
+  if (
+    !params.isStaff &&
+    params.priceConfirmed &&
+    ["QUEUED", "IN_PROGRESS", "ON_HOLD"].includes(params.status)
+  ) {
+    keyboard.text("🔔 Нагадати про замовлення", `o:remind:${id}`).row();
+  }
+
   if (!params.isStaff && params.status === "QUEUED" && params.priceConfirmed) {
     keyboard.text("❌ Скасувати замовлення", `o:cancel:${id}`).row();
   }

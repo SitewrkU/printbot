@@ -444,6 +444,37 @@ export const texts = {
   orderResumedClient: (code: string) =>
     `🖨 Замовлення <b>${escapeHtml(code)}</b> знову в роботі.`,
 
+  reminderStaff: (data: {
+    code: string;
+    status: string;
+    clientName: string;
+    room: string;
+    pages: number;
+    copies: number;
+    amount: string;
+    waiting: string;
+  }) =>
+    `🔔 <b>Клієнт нагадує про замовлення</b>\n\n` +
+    `<b>${escapeHtml(data.code)}</b> · ${escapeHtml(data.status)}\n` +
+    `👤 ${escapeHtml(data.clientName)} · 🚪 ${escapeHtml(data.room)}\n` +
+    `📄 ${data.pages} стор. × ${data.copies} · 💰 <b>${data.amount}</b>\n` +
+    `⏱ Без зміни статусу: ${data.waiting}\n\n` +
+    `👉 Перевірте, чи все ок із замовленням.`,
+  remindSent:
+    `✅ Нагадування надіслано працівникам. ` +
+    `Наступне можна буде через 30 хв.`,
+  remindTooSoon: (minutes: number) =>
+    `⏳ Нагадування вже надсилали нещодавно. ` +
+    `Наступне можна буде через <b>${minutes} хв</b>.`,
+  remindTooEarly: (minutes: number) =>
+    `⏳ Замовлення нещодавно оновлювалося. ` +
+    `Якщо статус не зміниться, нагадати можна буде через <b>${minutes} хв</b>.`,
+  remindNotActive: `Це замовлення вже не потребує нагадування.`,
+  remindReady: `✅ Замовлення вже готове — можете забирати.`,
+  remindConfirmPrice:
+    `Спочатку підтвердіть нову ціну — після цього працівники зможуть почати друк.`,
+  remindFailed: `Не вдалося надіслати нагадування. Спробуйте пізніше.`,
+
   orderAlreadyTaken: `Це замовлення вже взяв інший працівник.`,
   orderActionNotAllowed: `Ця дія зараз недоступна.`,
   orderFilesUnavailable: `Не вдалося надіслати файли: можливо, клієнт видалив повідомлення.`,
