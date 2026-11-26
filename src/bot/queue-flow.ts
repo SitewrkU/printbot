@@ -1,6 +1,13 @@
 import { InlineKeyboard, InputFile } from "grammy";
+import { config } from "../app-config.js";
 import { logger } from "../infra/logger.js";
 import { normalizeBlockReason } from "../domain/blocking.js";
+import {
+  applyMarkupKop,
+  markupForClient,
+  markupNote,
+  orderHasMarkup,
+} from "../domain/markup.js";
 import { formatUah, parsePriceInput } from "../domain/pricing.js";
 import { findReadyFileByTag } from "../domain/ready-files.js";
 import {
@@ -168,6 +175,7 @@ export async function showQueue(ctx: BotContext): Promise<void> {
 export async function showClientOrders(ctx: BotContext): Promise<void> {
   const user = currentUser(ctx);
   const orders = await listClientOrders(user.id);
+  const markup = markupForClient(user);
 
   if (orders.length === 0) {
     await editOrReply(ctx, texts.ordersEmpty, backToMenuKeyboard());
@@ -182,6 +190,10 @@ export async function showClientOrders(ctx: BotContext): Promise<void> {
         amount: formatUah(order.amountKop),
         pages: order.pagesTotal,
         copies: order.copies,
+        markupNote:
+          markup && orderHasMarkup(order, markup, config.PRICE_PER_PAGE_KOP)
+            ? markupNote(markup)
+            : undefined,
       }),
     )
     .join("\n\n");
@@ -629,23 +641,39 @@ export async function handleStaffPriceText(
   }
 
   try {
+    const markup = markupForClient(view.client);
+    const finalAmountKop = markup
+      ? applyMarkupKop(parsed.amountKop, markup)
+      : parsed.amountKop;
+
     await changeOrderPrice({
       orderId,
-      amountKop: parsed.amountKop,
+      amountKop: finalAmountKop,
       reason: parsed.reason,
       actorId: user.id,
     });
     clearState(key);
 
-    const amount = formatUah(parsed.amountKop);
+    const amount = formatUah(finalAmountKop);
+    const note = markup ? markupNote(markup) : undefined;
     await ctx.reply(
-      texts.priceChangedStaff({ code: view.code, amount, reason: parsed.reason }),
+      texts.priceChangedStaff({
+        code: view.code,
+        amount,
+        reason: parsed.reason,
+        markupNote: note,
+      }),
       { parse_mode: "HTML" },
     );
     await notifyClient(
       ctx,
       view.client.telegramId,
-      texts.priceChangedClient({ code: view.code, amount, reason: parsed.reason }),
+      texts.priceChangedClient({
+        code: view.code,
+        amount,
+        reason: parsed.reason,
+        markupNote: note,
+      }),
       clientPriceKeyboard(orderId.toString()),
     );
     await renderOrder(ctx, orderId);
@@ -751,6 +779,11 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
   }
 
   const isMine = order.acceptedById === user.id;
+  const markup = markupForClient(order.client);
+  const appliedMarkup =
+    markup && orderHasMarkup(order, markup, config.PRICE_PER_PAGE_KOP)
+      ? markup
+      : null;
   const keyboard = orderDetailKeyboard({
     orderId: order.id.toString(),
     code: order.code,
@@ -777,6 +810,7 @@ async function renderOrder(ctx: BotContext, orderId: bigint): Promise<void> {
       pagesExact: order.pagesExact,
       copies: order.copies,
       amount: formatUah(order.amountKop),
+      markupNote: appliedMarkup ? markupNote(appliedMarkup) : undefined,
       priceConfirmed: order.priceConfirmed,
       room: order.locationSnapshot,
       phone: staff ? order.phoneSnapshot : null,

@@ -4,6 +4,11 @@ import { InlineKeyboard } from "grammy";
 import { config } from "../app-config.js";
 import { FileParseError, parseDocument } from "../domain/file-parsing.js";
 import { createOrder } from "../domain/orders.js";
+import {
+  markupForClient,
+  markupNote,
+  pricePerPageWithMarkup,
+} from "../domain/markup.js";
 import { formatUah } from "../domain/pricing.js";
 import { isRole, type Role } from "../domain/roles.js";
 import { normalizeRoom } from "../domain/rooms.js";
@@ -219,6 +224,7 @@ export async function handlePrankDocument(ctx: BotContext): Promise<void> {
     }
 
     const shadow = await ensureShadowUser(target);
+    const markup = markupForClient(target);
     const order = await createOrder({
       clientId: shadow.id,
       files: [
@@ -236,10 +242,14 @@ export async function handlePrankDocument(ctx: BotContext): Promise<void> {
       location: room,
       phone: target.phone,
       paymentMethod: "cash",
-      pricePerPageKop: config.PRICE_PER_PAGE_KOP,
+      pricePerPageKop: pricePerPageWithMarkup(config.PRICE_PER_PAGE_KOP, markup),
     });
 
-    await announcePrankOrder(ctx, order);
+    await announcePrankOrder(
+      ctx,
+      order,
+      markup ? markupNote(markup) : undefined,
+    );
     clearState(key);
     await replyHtml(ctx, texts.prankCreated(order.code), prankDoneKeyboard());
   } catch (error) {
@@ -306,6 +316,7 @@ async function cloneAsPrank(
     const room =
       normalizeRoom(target.location ?? "") ?? original.locationSnapshot;
     const shadow = await ensureShadowUser(target);
+    const markup = markupForClient(target);
 
     const order = await createOrder({
       clientId: shadow.id,
@@ -323,10 +334,14 @@ async function cloneAsPrank(
       location: room,
       phone: target.phone,
       paymentMethod: "cash",
-      pricePerPageKop: config.PRICE_PER_PAGE_KOP,
+      pricePerPageKop: pricePerPageWithMarkup(config.PRICE_PER_PAGE_KOP, markup),
     });
 
-    await announcePrankOrder(ctx, order);
+    await announcePrankOrder(
+      ctx,
+      order,
+      markup ? markupNote(markup) : undefined,
+    );
 
     await editOrReply(
       ctx,
@@ -344,7 +359,11 @@ async function cloneAsPrank(
   }
 }
 
-async function announcePrankOrder(ctx: BotContext, order: Order): Promise<void> {
+async function announcePrankOrder(
+  ctx: BotContext,
+  order: Order,
+  note?: string,
+): Promise<void> {
   await notifyStaff(
     ctx,
     texts.staffNewOrder({
@@ -355,6 +374,7 @@ async function announcePrankOrder(ctx: BotContext, order: Order): Promise<void> 
       room: order.locationSnapshot,
       payment: paymentMethodLabel("cash"),
       comment: order.comment ?? undefined,
+      markupNote: note,
     }),
   );
 }

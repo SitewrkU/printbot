@@ -3,6 +3,11 @@ import { InputFile } from "grammy";
 import { config } from "../app-config.js";
 import { FileParseError, parseDocument } from "../domain/file-parsing.js";
 import {
+  markupForClient,
+  markupNote,
+  pricePerPageWithMarkup,
+} from "../domain/markup.js";
+import {
   countOrdersLastHour,
   createOrder,
   orderAmountKop,
@@ -486,7 +491,12 @@ async function showSummary(
 ): Promise<void> {
   const user = currentUser(ctx);
   const copies = state.order.copies;
-  const amount = orderAmountKop(state.order.files, copies, config.PRICE_PER_PAGE_KOP);
+  const markup = markupForClient(user);
+  const amount = orderAmountKop(
+    state.order.files,
+    copies,
+    pricePerPageWithMarkup(config.PRICE_PER_PAGE_KOP, markup),
+  );
 
   setState(conversationKey(ctx), { ...state, step: "order_confirm" });
 
@@ -497,6 +507,7 @@ async function showSummary(
       copies,
       totalPages: totalPages(state.order.files),
       amount: formatUah(amount),
+      markupNote: markup ? markupNote(markup) : undefined,
       room: normalizeRoom(user.location ?? "") ?? "—",
       phone: user.phone,
       comment: state.order.comment,
@@ -559,6 +570,8 @@ async function submitOrder(
       return;
     }
 
+    const markup = markupForClient(user);
+
     try {
       const order = await createOrder({
         clientId: user.id,
@@ -576,7 +589,7 @@ async function submitOrder(
         location: room,
         phone: user.phone,
         paymentMethod,
-        pricePerPageKop: config.PRICE_PER_PAGE_KOP,
+        pricePerPageKop: pricePerPageWithMarkup(config.PRICE_PER_PAGE_KOP, markup),
       });
 
       clearState(conversationKey(ctx));
@@ -588,6 +601,7 @@ async function submitOrder(
         pages: order.pagesTotal,
         copies: order.copies,
         room: order.locationSnapshot,
+        markupNote: markup ? markupNote(markup) : undefined,
       };
 
       await ctx.reply(

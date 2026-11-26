@@ -197,9 +197,11 @@ export const texts = {
     amount: string;
     pages: number;
     copies: number;
+    markupNote?: string;
   }) =>
     `${statusEmoji(order.status)} <b>${escapeHtml(order.code)}</b> · ${order.status}\n` +
-    `📄 ${order.pages} стор. × ${order.copies} · 💰 ${order.amount}`,
+    `📄 ${order.pages} стор. × ${order.copies} · 💰 ${order.amount}` +
+    (order.markupNote ? `\n${escapeHtml(order.markupNote)}` : ""),
 
   // --------------------------------------------------------------- замовлення
 
@@ -276,6 +278,7 @@ export const texts = {
     copies: number;
     totalPages: number;
     amount: string;
+    markupNote?: string;
     room: string;
     phone: string | null;
     comment?: string;
@@ -292,8 +295,9 @@ export const texts = {
       .join("\n") +
     `\n\n<b>📊 Розрахунок</b>\n` +
     `Сторінок: <b>${data.totalPages}</b> × ${data.copies} коп.\n` +
-    `До сплати: <b>${data.amount}</b>\n\n` +
-    `<b>📍 Отримання</b>\n` +
+    `До сплати: <b>${data.amount}</b>` +
+    (data.markupNote ? `\n${escapeHtml(data.markupNote)}` : "") +
+    `\n\n<b>📍 Отримання</b>\n` +
     `Кімната: ${escapeHtml(data.room)}\n` +
     `Забрати: ${escapeHtml(config.PICKUP_POINT)}\n` +
     `Телефон: ${data.phone ? formatPhone(data.phone) : "—"}` +
@@ -311,10 +315,12 @@ export const texts = {
     pages: number;
     copies: number;
     room: string;
+    markupNote?: string;
   }) =>
     `✅ <b>Замовлення ${escapeHtml(data.code)} створено</b>\n\n` +
-    `<b>📄 ${data.pages} стор. × ${data.copies} коп. = ${data.amount}</b>\n` +
-    `💵 Оплата: готівкою при отриманні\n` +
+    `<b>📄 ${data.pages} стор. × ${data.copies} коп. = ${data.amount}</b>` +
+    (data.markupNote ? `\n${escapeHtml(data.markupNote)}` : "") +
+    `\n💵 Оплата: готівкою при отриманні\n` +
     `🚪 Ваша кімната: ${escapeHtml(data.room)}\n` +
     `📍 Забрати: ${escapeHtml(config.PICKUP_POINT)}\n\n` +
     `⏳ Ми напишемо, коли замовлення буде готове.`,
@@ -325,10 +331,12 @@ export const texts = {
     pages: number;
     copies: number;
     room: string;
+    markupNote?: string;
   }) =>
     `✅ <b>Замовлення ${escapeHtml(data.code)} створено</b>\n\n` +
-    `<b>📄 ${data.pages} стор. × ${data.copies} коп. = ${data.amount}</b>\n` +
-    `🚪 Ваша кімната: ${escapeHtml(data.room)}\n` +
+    `<b>📄 ${data.pages} стор. × ${data.copies} коп. = ${data.amount}</b>` +
+    (data.markupNote ? `\n${escapeHtml(data.markupNote)}` : "") +
+    `\n🚪 Ваша кімната: ${escapeHtml(data.room)}\n` +
     `📍 Забрати: ${escapeHtml(config.PICKUP_POINT)}\n\n` +
     (config.CARD_NUMBER
       ? `<b>💳 Оплата карткою</b>\n` +
@@ -361,10 +369,12 @@ export const texts = {
     room: string;
     payment: string;
     comment?: string;
+    markupNote?: string;
   }) =>
     `🆕 <b>Нове замовлення ${escapeHtml(data.code)}</b>\n\n` +
-    `📄 ${data.pages} стор. × ${data.copies} коп. · 💰 <b>${data.amount}</b>\n` +
-    `💳 Оплата: ${escapeHtml(data.payment)}\n` +
+    `📄 ${data.pages} стор. × ${data.copies} коп. · 💰 <b>${data.amount}</b>` +
+    (data.markupNote ? `\n${escapeHtml(data.markupNote)}` : "") +
+    `\n💳 Оплата: ${escapeHtml(data.payment)}\n` +
     `🚪 Кімната: ${escapeHtml(data.room)}` +
     (data.comment ? `\n💬 Коментар: ${escapeHtml(data.comment)}` : "") +
     `\n\n👉 Відкрийте «📋 Черга», щоб взяти замовлення.`,
@@ -410,6 +420,7 @@ export const texts = {
     pagesExact: boolean;
     copies: number;
     amount: string;
+    markupNote?: string;
     priceConfirmed: boolean;
     room: string;
     phone: string | null;
@@ -432,6 +443,7 @@ export const texts = {
     `\n<b>📄 Замовлення</b>\n` +
     `Сторінок: ${data.pages}${data.pagesExact ? "" : " (≈)"} × ${data.copies} коп.\n` +
     `💰 Сума: <b>${data.amount}</b>` +
+    (data.markupNote ? ` ${escapeHtml(data.markupNote)}` : "") +
     (data.priceConfirmed
       ? "\n"
       : ` ⚠️ <i>очікує підтвердження клієнтом</i>\n`) +
@@ -522,13 +534,25 @@ export const texts = {
     `Можна додати причину через риску: <code>45 | багато кольору</code>.`,
   priceInvalid:
     `Некоректна сума. Введіть число від 1 до 1000 грн, наприклад <code>45</code> або <code>45.50 | багато кольору</code>.`,
-  priceChangedStaff: (data: { code: string; amount: string; reason: string }) =>
+  priceChangedStaff: (data: {
+    code: string;
+    amount: string;
+    reason: string;
+    markupNote?: string;
+  }) =>
     `✅ Ціну <b>${escapeHtml(data.code)}</b> змінено на <b>${data.amount}</b>.\n` +
+    (data.markupNote ? `${escapeHtml(data.markupNote)}\n` : "") +
     `Причина: ${escapeHtml(data.reason)}.\n` +
     `Клієнт має підтвердити нову суму.`,
-  priceChangedClient: (data: { code: string; amount: string; reason: string }) =>
+  priceChangedClient: (data: {
+    code: string;
+    amount: string;
+    reason: string;
+    markupNote?: string;
+  }) =>
     `<b>💰 Змінилася ціна замовлення ${escapeHtml(data.code)}</b>\n\n` +
     `Нова сума: <b>${data.amount}</b>\n` +
+    (data.markupNote ? `${escapeHtml(data.markupNote)}\n` : "") +
     `Причина: ${escapeHtml(data.reason)}\n\n` +
     `Погоджуєтеся? Якщо ні — замовлення буде скасовано.`,
   priceAgreedClient: (code: string) =>
